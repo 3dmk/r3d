@@ -1,0 +1,44 @@
+name: R3D Release Gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.html'
+      - '*.js'
+      - '*.mjs'
+      - 'README.md'
+      - '.github/workflows/r3d-release-gate.yml'
+  pull_request:
+    paths:
+      - '*.html'
+      - '*.js'
+      - '*.mjs'
+      - 'README.md'
+      - '.github/workflows/r3d-release-gate.yml'
+  workflow_dispatch:
+jobs:
+  static-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node release-check.mjs
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save @playwright/test@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          python3 -m http.server 4173 >/tmp/r3d-http.log 2>&1 &
+          echo $! >/tmp/r3d-http.pid
+          sleep 2
+      - run: npx playwright test browser-smoke.spec.js --reporter=line --workers=1
+        env:
+          CI: true
