@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>R3D</title>
 <style>
 :root{--bg:#1f2124;--panel:#292c30;--panel2:#32363b;--line:#474b51;--text:#ddd;--muted:#aeb5bd;--accent:#ff8a00;--btn:#35393e}
@@ -17,7 +20,7 @@ button,input,select{font:inherit}button{background:var(--btn);color:#eee;border:
 </head>
 <body>
 <div class="app">
-  <div class="bar"><div class="brand">R3D</div><div class="menu">File</div><div class="menu">Edit</div><div class="menu">Tools</div><div class="menu">View</div><div class="menu">Create</div><div class="menu">Render</div><div class="menu">Help</div><span class="spacer"></span><span class="small">v1.0 RC</span></div>
+  <div class="bar"><div class="brand">R3D</div><div class="menu">File</div><div class="menu">Edit</div><div class="menu">Tools</div><div class="menu">View</div><div class="menu">Create</div><div class="menu">Render</div><div class="menu">Help</div><span class="spacer"></span><span class="small">v1.0 RC3</span></div>
   <div class="bar">
     <button id="selectTool" class="active">Select [Q]</button><button id="moveTool">Move [W]</button><button id="rotateTool">Rotate [E]</button><button id="scaleTool">Scale [R]</button>
     <span class="sep"></span><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button><span class="sep"></span><button id="frameBtn">Frame [F]</button><button id="resetBtn">Reset View</button>
@@ -61,13 +64,13 @@ button,input,select{font:inherit}button{background:var(--btn);color:#eee;border:
   <div class="status"><span id="status">R3D booting…</span><span id="size">0×0</span></div>
 </div>
 <div id="modal" class="modal"><div class="renderPanel"><div class="renderHead"><b>R3D Final Render</b><span id="renderBackend" class="tag">Preparing</span><span id="renderInfo" class="small">Preparing…</span><span class="spacer"></span><button id="closeRender">Close</button></div><div class="renderCanvasWrap"><canvas id="rc" width="960" height="600"></canvas></div><div class="renderFoot"><div class="progress"><i id="bar"></i></div><span id="pct">0%</span><span id="stats" class="small"></span><span class="spacer"></span><button id="cancel">Cancel</button><button id="save">Save PNG</button></div></div></div>
-<script src="r3d-editor.js"></script>
-<script src="r3d-renderer.js"></script>
-<script src="r3d-render-watchdog.js"></script>
-<script src="r3d-output-orientation.js"></script>
-<script src="r3d-input-priority-shim.js"></script>
-<script src="r3d-local-orbit.js"></script>
-<script src="r3d-camera-gizmos.js"></script>
-<script src="r3d-bootstrap.js"></script>
+<script src="r3d-editor.js?v=rc3"></script>
+<script src="r3d-renderer.js?v=rc3"></script>
+<script src="r3d-render-watchdog.js?v=rc3"></script>
+<script src="r3d-output-orientation.js?v=rc3"></script>
+<script src="r3d-input-priority-shim.js?v=rc3"></script>
+<script src="r3d-local-orbit.js?v=rc3"></script>
+<script src="r3d-camera-gizmos.js?v=rc3"></script>
+<script src="r3d-bootstrap.js?v=rc3"></script>
 </body>
 </html>
