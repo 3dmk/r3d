@@ -18,7 +18,7 @@ const ed=read('r3d-editor.js'),ren=read('r3d-renderer.js'),watch=read('r3d-rende
 for(const token of ['window.R3DEditor','checkpoint()','doUndo','doRedo','addObject','setTool','pan=[0,0,0]','cross(right,f)'])if(!ed.includes(token))fail(`editor contract missing ${token}`);
 for(const token of ['window.R3DRenderer','buildSAH','coneh','coneCPU','GPUBufferUsage','temporal','denoise','reservoir'])if(!ren.includes(token))fail(`renderer contract missing ${token}`);
 for(const token of ['canvasLuma','safeCPU','black-frame watchdog'])if(!watch.includes(token))fail(`watchdog contract missing ${token}`);
-for(const token of ['markCanvasUpright','r3dOrientation','r3dRenderOrientation','orientation-neutral'])if(!orient.includes(token))fail(`orientation contract missing ${token}`);
+for(const token of ['markCanvasUpright','rotateCanvas180','r3dOrientation','r3dOrientationFix','rotate180'])if(!orient.includes(token))fail(`orientation contract missing ${token}`);
 if(orient.includes('scale(1,-1)')||orient.includes('scale(1, -1)'))fail('blanket final vertical flip returned');
 for(const token of ['viewportNav','r3dInputPriority'])if(!priority.includes(token))fail(`input-priority contract missing ${token}`);
 for(const token of ['R3DLocalOrbit','FACTOR=2.0','r3dLocalOrbit'])if(!orbit.includes(token))fail(`local-orbit contract missing ${token}`);
