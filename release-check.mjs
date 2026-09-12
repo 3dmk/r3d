@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 const root=path.dirname(new URL(import.meta.url).pathname);
 const fail=m=>{console.error('R3D RELEASE GATE FAIL:',m);process.exitCode=1};
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
-const files=['index.html','r3d-editor.js','r3d-renderer.js','r3d-core-validation.js','r3d-render-watchdog.js','r3d-input-priority-shim.js','r3d-local-orbit.js','r3d-camera-gizmos.js','r3d-gi-extension.js','r3d-render-window.js','r3d-bootstrap.js'];
+const files=['index.html','r3d-editor.js','r3d-renderer.js','r3d-core-validation.js','r3d-render-watchdog.js','r3d-input-priority-shim.js','r3d-local-orbit.js','r3d-camera-gizmos.js','r3d-gi-extension.js','r3d-luma-quality.js','r3d-render-window.js','r3d-bootstrap.js'];
 for(const f of files)if(!fs.existsSync(path.join(root,f)))fail(`missing ${f}`);
 for(const retired of ['r3d-output-orientation.js','r3d-progressive-pass.js'])if(fs.existsSync(path.join(root,retired)))fail(`retired render-window file still exists: ${retired}`);
 const html=read('index.html');
@@ -13,11 +13,11 @@ for(const id of ['gl','scene','status','renderBtn','renderSide','selectTool','mo
 for(const forbidden of ['id="modal"','id="rc"','id="renderBackend"','id="renderInfo"','id="pct"','id="bar"','id="stats"'])if(html.includes(forbidden))fail(`legacy render-window markup returned: ${forbidden}`);
 for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(!/\bsrc=/.test(m[1]))fail('inline script body is forbidden');if(m[2].trim())fail('external script tag contains inline body')}
 const scripts=[...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(m=>m[1]);
-const expected=['r3d-editor.js?v=rc7','r3d-renderer.js?v=rc7','r3d-core-validation.js?v=rc7-corefix1','r3d-render-watchdog.js?v=rc7-orientfix1','r3d-input-priority-shim.js?v=rc7','r3d-local-orbit.js?v=rc7','r3d-camera-gizmos.js?v=rc7','r3d-gi-extension.js?v=rc7-gi4','r3d-render-window.js?v=rc7-debug1','r3d-bootstrap.js?v=rc7'];
+const expected=['r3d-editor.js?v=rc7','r3d-renderer.js?v=rc7','r3d-core-validation.js?v=rc7-corefix1','r3d-render-watchdog.js?v=rc7-orientfix1','r3d-input-priority-shim.js?v=rc7','r3d-local-orbit.js?v=rc7','r3d-camera-gizmos.js?v=rc7','r3d-gi-extension.js?v=rc7-gi4','r3d-luma-quality.js?v=rc7-luma1','r3d-render-window.js?v=rc7-debug1','r3d-bootstrap.js?v=rc7'];
 if(JSON.stringify(scripts)!==JSON.stringify(expected))fail('RC7 script load order/version changed');
 if(!html.includes('v1.0 RC7'))fail('visible RC7 build marker missing');
 for(const f of files.filter(f=>f.endsWith('.js'))){try{execFileSync(process.execPath,['--check',path.join(root,f)],{stdio:'pipe'})}catch(e){fail(`${f} syntax error\n${e.stderr?.toString()||e.message}`)}const s=read(f);for(const banned of ['LitePix','3DLite','ThreeDLite'])if(s.includes(banned))fail(`${f} contains cross-project term ${banned}`)}
-const ed=read('r3d-editor.js'),ren=read('r3d-renderer.js'),core=read('r3d-core-validation.js'),watch=read('r3d-render-watchdog.js'),priority=read('r3d-input-priority-shim.js'),orbit=read('r3d-local-orbit.js'),cams=read('r3d-camera-gizmos.js'),gi=read('r3d-gi-extension.js'),rw=read('r3d-render-window.js'),boot=read('r3d-bootstrap.js');
+const ed=read('r3d-editor.js'),ren=read('r3d-renderer.js'),core=read('r3d-core-validation.js'),watch=read('r3d-render-watchdog.js'),priority=read('r3d-input-priority-shim.js'),orbit=read('r3d-local-orbit.js'),cams=read('r3d-camera-gizmos.js'),gi=read('r3d-gi-extension.js'),lq=read('r3d-luma-quality.js'),rw=read('r3d-render-window.js'),boot=read('r3d-bootstrap.js');
 for(const token of ['window.R3DEditor','checkpoint()','doUndo','doRedo','addObject','setTool','pan=[0,0,0]'])if(!ed.includes(token))fail(`editor contract missing ${token}`);
 for(const token of ['window.R3DRenderer','buildSAH','GPUBufferUsage','temporal','denoise','reservoir','cross(f,vec3f(0.,1.,0.))','cross(r,f)'])if(!ren.includes(token))fail(`renderer contract missing ${token}`);
 for(const token of ['r3dCoreValidation','r3dCoreRetry','r3dCoreRetryLuma','clean-webgpu','adaptive','temporal','denoise'])if(!core.includes(token))fail(`core validation contract missing ${token}`);
@@ -29,6 +29,7 @@ for(const token of ['window.R3DCameras','cameraForRender','activeCameraId'])if(!
 for(const token of ['r3dGIControls','giEnabled','giStrength','giColorBounce','giColorStrength','giAO','giAOStrength','giAORadius','giAOSamples','giMix','giRecon','applyGI','hemiLD(','edgeAwareReconstruct','r3dGIComplete','r3dGIReconstruction','Same-ray HQ GI reconstruction','dark=1-(1-aov)*.92;let rr='])if(!gi.includes(token))fail(`GI extension contract missing ${token}`);
 if(/(?:^|[;{])\s*base\s*=\s*\[/.test(gi))fail('GI extension contains undeclared strict-mode base assignment');
 if(/dark=1-\(1-aov\)\*\.92,rr=/.test(gi))fail('GI reconstruction color accumulators are const-bound and later reassigned');
+for(const token of ['r3dLumaControls','lumaQuality','lumaShadow','lumaLight','lumaReflection','lumaDenoise','applyLumaQuality','r3dLumaKey','r3dLumaQuality','bilateral denoise'])if(!lq.includes(token))fail(`luma quality contract missing ${token}`);
 for(const token of ['window.R3DRenderWindow','Realtime Interaction','Final Render Result','Render Final','rayPass(','renderFrame(','interactiveCam','snapshotFinal','sourceCamera','dataset.r3dRenderWindow','createCoreTarget','releaseCoreTarget','r3dCoreRenderTarget','rcDisplay','r3dProgressivePassCount','Render Debug','copyRenderDebug','clearRenderDebug','debugEntries','dbgSnapshot','r3dRenderDebug'])if(!rw.includes(token))fail(`new render-window contract missing ${token}`);
 for(const forbidden of ['R3DOutputOrientation','rotateCanvas180','display-rotate180','glCanvas','startRealtimeInteraction','showFinalResult'])if(rw.includes(forbidden))fail(`legacy render-window behavior returned: ${forbidden}`);
 if(!rw.includes("dataset.r3dRenderWindow='6'"))fail('render-window generation 6 marker missing');
@@ -37,4 +38,4 @@ if((ed.match(/requestAnimationFrame\(loop\)/g)||[]).length!==2)fail('editor anim
 if((ren.match(/beginComputePass/g)||[]).length<1)fail('WebGPU compute dispatch missing');
 if(process.exitCode)process.exit(process.exitCode);
 console.log('R3D RC7 release gate PASS');
-console.log(`staticIDs=${ids.length} scripts=${scripts.length} renderWindow=${rw.length} watchdogBasis=canonical coreValidation=clean-webgpu-retry gi=same-ray-edge-aware-HQ debug=render-timeline+copy giMutableColor=verified`);
+console.log(`staticIDs=${ids.length} scripts=${scripts.length} renderWindow=${rw.length} watchdogBasis=canonical coreValidation=clean-webgpu-retry gi=same-ray-edge-aware-HQ luma=shadow+light+reflection+bilateral-denoise debug=render-timeline+copy giMutableColor=verified`);
