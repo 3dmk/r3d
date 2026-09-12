@@ -18,12 +18,12 @@ const ed=read('r3d-editor.js'),ren=read('r3d-renderer.js'),watch=read('r3d-rende
 for(const token of ['window.R3DEditor','checkpoint()','doUndo','doRedo','addObject','setTool','pan=[0,0,0]','cross(right,f)'])if(!ed.includes(token))fail(`editor contract missing ${token}`);
 for(const token of ['window.R3DRenderer','buildSAH','coneh','coneCPU','GPUBufferUsage','temporal','denoise','reservoir'])if(!ren.includes(token))fail(`renderer contract missing ${token}`);
 for(const token of ['canvasLuma','safeCPU','black-frame watchdog'])if(!watch.includes(token))fail(`watchdog contract missing ${token}`);
-for(const token of ['markCanvasUpright','rotateCanvas180','r3dOrientation','r3dOrientationFix','rotate180'])if(!orient.includes(token))fail(`orientation contract missing ${token}`);
-if(orient.includes('scale(1,-1)')||orient.includes('scale(1, -1)'))fail('blanket final vertical flip returned');
+for(const token of ['markCanvasUpright','r3dOrientation','native-camera-basis'])if(!orient.includes(token))fail(`orientation contract missing ${token}`);
+for(const banned of ['rotateCanvas180','rotate180','scale(1,-1)','scale(1, -1)','setTransform(-1'])if(orient.includes(banned))fail(`orientation transform returned: ${banned}`);
 for(const token of ['viewportNav','r3dInputPriority'])if(!priority.includes(token))fail(`input-priority contract missing ${token}`);
 for(const token of ['R3DLocalOrbit','FACTOR=2.0','r3dLocalOrbit'])if(!orbit.includes(token))fail(`local-orbit contract missing ${token}`);
 for(const token of ['window.R3DCameras','cameraForRender','activeCameraId','drawMoveGizmo','drawRotateGizmo','drawScaleGizmo','copyCamera','deleteCamera','cameraFromView'])if(!cams.includes(token))fail(`camera/gizmo contract missing ${token}`);
-if(!boot.includes("dataset.r3dBootstrap='1'"))fail('bootstrap completion marker missing');
+for(const token of ["dataset.r3dBootstrap='1'",'startPreview(true)','r3dRasterDuringFinal','Final render computing • raster preview stays live'])if(!boot.includes(token))fail(`bootstrap/render-preview contract missing ${token}`);
 if((ed.match(/requestAnimationFrame\(loop\)/g)||[]).length!==2)fail('editor animation loop structure changed');
 if((ren.match(/beginComputePass/g)||[]).length<1)fail('WebGPU compute dispatch missing');
 if(process.exitCode)process.exit(process.exitCode);
