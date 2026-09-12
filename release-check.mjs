@@ -12,23 +12,23 @@ for(const id of ids){if(seen.has(id))fail(`duplicate id ${id}`);seen.add(id)}
 for(const id of ['gl','scene','status','renderBtn','renderSide','rc','modal','selectTool','moveTool','rotateTool','scaleTool'])if(!seen.has(id))fail(`required id ${id} missing`);
 for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(!/\bsrc=/.test(m[1]))fail('inline script body is forbidden');if(m[2].trim())fail('external script tag contains inline body')}
 const scripts=[...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(m=>m[1]);
-const expected=['r3d-editor.js?v=rc5','r3d-renderer.js?v=rc5','r3d-render-watchdog.js?v=rc5','r3d-output-orientation.js?v=rc5','r3d-progressive-pass.js?v=rc5','r3d-input-priority-shim.js?v=rc5','r3d-local-orbit.js?v=rc5','r3d-camera-gizmos.js?v=rc5','r3d-bootstrap.js?v=rc5'];
+const expected=['r3d-editor.js?v=rc6','r3d-renderer.js?v=rc6','r3d-render-watchdog.js?v=rc6','r3d-output-orientation.js?v=rc6','r3d-progressive-pass.js?v=rc6','r3d-input-priority-shim.js?v=rc6','r3d-local-orbit.js?v=rc6','r3d-camera-gizmos.js?v=rc6','r3d-bootstrap.js?v=rc6'];
 if(JSON.stringify(scripts)!==JSON.stringify(expected))fail('script load order/version changed');
-if(!html.includes('v1.0 RC5'))fail('visible RC5 build marker missing');
+if(!html.includes('v1.0 RC6'))fail('visible RC6 build marker missing');
 if(!html.includes('Cache-Control'))fail('cache-control meta missing');
 for(const f of files.filter(f=>f.endsWith('.js'))){try{execFileSync(process.execPath,['--check',path.join(root,f)],{stdio:'pipe'})}catch(e){fail(`${f} syntax error\n${e.stderr?.toString()||e.message}`)}const s=read(f);for(const banned of ['LitePix','3DLite','ThreeDLite'])if(s.includes(banned))fail(`${f} contains banned cross-project term ${banned}`)}
 const ed=read('r3d-editor.js'),ren=read('r3d-renderer.js'),watch=read('r3d-render-watchdog.js'),orient=read('r3d-output-orientation.js'),prog=read('r3d-progressive-pass.js'),priority=read('r3d-input-priority-shim.js'),orbit=read('r3d-local-orbit.js'),cams=read('r3d-camera-gizmos.js'),boot=read('r3d-bootstrap.js');
 for(const token of ['window.R3DEditor','checkpoint()','doUndo','doRedo','addObject','setTool','pan=[0,0,0]','cross(right,f)'])if(!ed.includes(token))fail(`editor contract missing ${token}`);
 for(const token of ['window.R3DRenderer','buildSAH','coneh','coneCPU','GPUBufferUsage','temporal','denoise','reservoir'])if(!ren.includes(token))fail(`renderer contract missing ${token}`);
 for(const token of ['canvasLuma','safeCPU','black-frame watchdog'])if(!watch.includes(token))fail(`watchdog contract missing ${token}`);
-for(const token of ['markCanvasUpright','r3dOrientation','native-camera-basis'])if(!orient.includes(token))fail(`orientation contract missing ${token}`);
-for(const banned of ['rotateCanvas180','rotate180','scale(1,-1)','scale(1, -1)','setTransform(-1'])if(orient.includes(banned))fail(`orientation transform returned: ${banned}`);
-for(const token of ['Progressive Ray Pass','r3dProgressivePass','progressiveActive','startRealtimeInteraction','showFinalResult','hasFinalResult','r3dRealtimeInteraction','trace(','ray('])if(!prog.includes(token))fail(`progressive pass contract missing ${token}`);
+for(const token of ['R3DOutputOrientation','rotateCanvas180','drawOriented','display-rotate180','r3dOrientationStage'])if(!orient.includes(token))fail(`orientation-stage contract missing ${token}`);
+if(orient.includes('wrapped.render')||orient.includes('window.R3DRenderer=wrapped'))fail('orientation stage must not wrap renderer in RC6');
+for(const token of ['Progressive Ray Pass','r3dProgressivePass','progressiveActive','startRealtimeInteraction','showFinalResult','hasFinalResult','r3dRealtimeInteraction','interactiveCam','realtimeCamera','r3dRealtimeCameraChanged','R3DOutputOrientation?.apply','trace(','ray('])if(!prog.includes(token))fail(`progressive pass contract missing ${token}`);
 if(prog.includes("drawImage(document.getElementById('gl')")||prog.includes('glCanvas'))fail('progressive pass must not copy viewport canvas');
 for(const token of ['viewportNav','r3dInputPriority','r3dInputPriorityIntercept'])if(!priority.includes(token))fail(`input-priority contract missing ${token}`);
 for(const token of ['R3DLocalOrbit','FACTOR=2.0','r3dLocalOrbit'])if(!orbit.includes(token))fail(`local-orbit contract missing ${token}`);
 for(const token of ['window.R3DCameras','cameraForRender','activeCameraId','drawMoveGizmo','drawRotateGizmo','drawScaleGizmo','copyCamera','deleteCamera','cameraFromView'])if(!cams.includes(token))fail(`camera/gizmo contract missing ${token}`);
-for(const token of ["dataset.r3dBootstrap='1'",'Realtime Interaction & Render','Final Render Result',"dataset.r3dBuild='1.0.0-rc5'","dataset.r3dFinalRenderComplete='1'"])if(!boot.includes(token))fail(`bootstrap/render-window contract missing ${token}`);
+for(const token of ["dataset.r3dBootstrap='1'",'Realtime Interaction & Render','Final Render Result',"dataset.r3dBuild='1.0.0-rc6'","dataset.r3dFinalRenderComplete='1'"])if(!boot.includes(token))fail(`bootstrap/render-window contract missing ${token}`);
 if((ed.match(/requestAnimationFrame\(loop\)/g)||[]).length!==2)fail('editor animation loop structure changed');
 if((ren.match(/beginComputePass/g)||[]).length<1)fail('WebGPU compute dispatch missing');
 if(process.exitCode)process.exit(process.exitCode);
