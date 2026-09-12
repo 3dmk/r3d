@@ -20,7 +20,7 @@ window.addEventListener('unhandledrejection',e=>{console.error('R3D unhandled re
 document.documentElement.dataset.r3dBootstrap='1';
 document.documentElement.dataset.r3dFinalRenderComplete='0';
 document.documentElement.dataset.r3dRenderView='';
-document.documentElement.dataset.r3dBuild='1.0.0-rc5';
+document.documentElement.dataset.r3dBuild='1.0.0-rc6';
 $('backendLabel').textContent=navigator.gpu?'WebGL + WebGPU':'WebGL + CPU render fallback';
 updateModeButtons();
 })();
