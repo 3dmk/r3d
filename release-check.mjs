@@ -24,8 +24,9 @@ for(const token of ['canvasLuma','safeCPU','black-frame watchdog'])if(!watch.inc
 for(const token of ['viewportNav','r3dInputPriority'])if(!priority.includes(token))fail(`input routing contract missing ${token}`);
 for(const token of ['R3DLocalOrbit','FACTOR=2.0'])if(!orbit.includes(token))fail(`orbit contract missing ${token}`);
 for(const token of ['window.R3DCameras','cameraForRender','activeCameraId'])if(!cams.includes(token))fail(`camera contract missing ${token}`);
-for(const token of ['window.R3DRenderWindow','Realtime Interaction','Final Render Result','Render Final','rayPass(','interactiveCam','snapshotFinal','sourceCamera','dataset.r3dRenderWindow'])if(!rw.includes(token))fail(`new render-window contract missing ${token}`);
+for(const token of ['window.R3DRenderWindow','Realtime Interaction','Final Render Result','Render Final','rayPass(','interactiveCam','snapshotFinal','sourceCamera','dataset.r3dRenderWindow','createCoreTarget','releaseCoreTarget','r3dCoreRenderTarget','rcDisplay'])if(!rw.includes(token))fail(`new render-window contract missing ${token}`);
 for(const forbidden of ['R3DOutputOrientation','rotateCanvas180','display-rotate180','glCanvas','startRealtimeInteraction','showFinalResult'])if(rw.includes(forbidden))fail(`legacy render-window behavior returned: ${forbidden}`);
+if(!rw.includes("dataset.r3dRenderWindow='3'"))fail('render-window generation 3 marker missing');
 for(const token of ["dataset.r3dBootstrap='1'","dataset.r3dBuild='1.0.0-rc7'",'window.R3DRenderWindow'])if(!boot.includes(token))fail(`bootstrap contract missing ${token}`);
 if((ed.match(/requestAnimationFrame\(loop\)/g)||[]).length!==2)fail('editor animation loop structure changed');
 if((ren.match(/beginComputePass/g)||[]).length<1)fail('WebGPU compute dispatch missing');
