@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>R3D</title>
+<style>
+:root{--bg:#1f2124;--panel:#292c30;--panel2:#32363b;--line:#474b51;--text:#ddd;--muted:#aeb5bd;--accent:#ff8a00;--btn:#35393e}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:12px "Segoe UI",Arial,sans-serif}
+button,input,select{font:inherit}button{background:var(--btn);color:#eee;border:1px solid #50565e;border-radius:3px;padding:5px 8px;cursor:pointer}button:hover{background:#41464d}button.active{background:#555c64;border-color:#777}.danger{border-color:#845050}.renderBtn{background:#6d4515;border-color:#b5701e}
+.app{height:100vh;display:grid;grid-template-rows:28px 38px 1fr 22px}.bar{display:flex;align-items:center;background:#25282c;border-bottom:1px solid var(--line);padding:0 7px;gap:5px}.brand{font-weight:700;padding:0 10px;color:#fff}.menu{padding:6px 8px}.sep{width:1px;height:22px;background:#50555c;margin:0 2px}.spacer{flex:1}
+.main{min-height:0;display:grid;grid-template-columns:220px 1fr 300px}.side{background:var(--panel);min-height:0;overflow:auto}.left{border-right:1px solid var(--line)}.right{border-left:1px solid var(--line)}.title{height:30px;padding:7px 10px;background:var(--panel2);border-bottom:1px solid var(--line);font-weight:600}.scene{padding:6px}.item{padding:6px 8px;border-radius:3px;cursor:pointer}.item:hover{background:#383c42}.item.sel{background:#4a5057;border-left:3px solid var(--accent)}
+.smallbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:6px}.smallbar.two{grid-template-columns:1fr 1fr}.view{position:relative;min-width:0;min-height:0;background:#151719}#gl{width:100%;height:100%;display:block}.hud{position:absolute;left:10px;top:10px;padding:7px 9px;background:#15171acc;border-radius:4px;pointer-events:none}.hint{position:absolute;right:10px;bottom:10px;padding:6px 8px;background:#15171acc;border-radius:4px;pointer-events:none}
+.props{padding:10px}.row{display:grid;grid-template-columns:100px 1fr;gap:8px;align-items:center;margin-bottom:7px}.row input,.row select{width:100%;background:#17191c;color:#eee;border:1px solid #555b62;border-radius:3px;padding:5px}.triple{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}.status{display:flex;justify-content:space-between;align-items:center;background:#25282c;border-top:1px solid var(--line);padding:0 8px}.tag{display:inline-block;padding:2px 5px;border-radius:3px;background:#21384a;color:#9bd0ff;font-size:11px}.small{color:var(--muted);font-size:11px}hr{border:0;border-top:1px solid #454a51;margin:10px 0}
+.modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:20}.renderPanel{width:min(1120px,96vw);height:min(780px,94vh);background:#26292d;border:1px solid #5a6068;display:grid;grid-template-rows:42px 1fr 48px}.renderHead,.renderFoot{display:flex;align-items:center;padding:6px 9px;gap:8px;background:#30343a}.renderHead{border-bottom:1px solid #4d5259}.renderFoot{border-top:1px solid #4d5259}.renderCanvasWrap{min-height:0;background:#111;display:flex;align-items:center;justify-content:center;overflow:auto}.renderCanvasWrap canvas{max-width:100%;max-height:100%}.progress{width:220px;height:8px;background:#16181b;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;width:0;background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar"><div class="brand">R3D</div><div class="menu">File</div><div class="menu">Edit</div><div class="menu">Tools</div><div class="menu">View</div><div class="menu">Create</div><div class="menu">Render</div><div class="menu">Help</div><span class="spacer"></span><span class="small">v1.0 RC</span></div>
+  <div class="bar">
+    <button id="selectTool" class="active">Select [Q]</button><button id="moveTool">Move [W]</button><button id="rotateTool">Rotate [E]</button><button id="scaleTool">Scale [R]</button>
+    <span class="sep"></span><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button><span class="sep"></span><button id="frameBtn">Frame [F]</button><button id="resetBtn">Reset View</button>
+    <button id="renderBtn" class="renderBtn">▶ Render</button><span class="spacer"></span><span>Viewport:</span><button id="litBtn" class="active">Lit</button><button id="wireBtn">Wire</button>
+  </div>
+  <div class="main">
+    <aside class="side left">
+      <div class="title">Scene Explorer</div>
+      <div class="smallbar"><button id="addCube">+ Cube</button><button id="addSphere">+ Sphere</button><button id="addCone">+ Cone</button></div>
+      <div class="smallbar two"><button id="dupBtn">Duplicate</button><button id="delBtn" class="danger">Delete</button></div>
+      <div id="scene" class="scene"></div>
+    </aside>
+    <section class="view">
+      <canvas id="gl"></canvas>
+      <div class="hud"><b>R3D Realtime Viewport</b><br><span id="backendLabel">WebGL</span> • FPS <span id="fps">0</span><br>Tool: <span id="toolName">Select</span> • Selected: <span id="selName">Cube</span></div>
+      <div class="hint">LMB Select/Edit • Alt+LMB Orbit • MMB Pan • Wheel Zoom</div>
+    </section>
+    <aside class="side right">
+      <div class="title">Object / Renderer</div>
+      <div class="props">
+        <div class="row"><label>Position</label><div class="triple"><input id="px" type="number" step="0.1"><input id="py" type="number" step="0.1"><input id="pz" type="number" step="0.1"></div></div>
+        <div class="row"><label>Rotation °</label><div class="triple"><input id="rx" type="number" step="1"><input id="ry" type="number" step="1"><input id="rz" type="number" step="1"></div></div>
+        <div class="row"><label>Scale</label><input id="sc" type="number" step="0.1" min="0.05"></div>
+        <div class="row"><label>Material</label><select id="mat"><option value="diffuse">Diffuse</option><option value="metal">Metal</option><option value="glass">Glass</option></select></div>
+        <div class="row"><label>Color</label><input id="color" type="color" value="#aeb8c7"></div>
+        <hr>
+        <div class="row"><label>Sun</label><input id="sun" type="number" value="1.4" min="0" max="6" step="0.1"></div>
+        <div class="row"><label>Output width</label><select id="rw"><option>640</option><option selected>960</option><option>1280</option><option>1920</option></select></div>
+        <div class="row"><label>Internal scale</label><select id="rscale"><option value="0.5">50% Fast</option><option value="0.67" selected>67% Balanced</option><option value="1">100% Native</option></select></div>
+        <div class="row"><label>GI bounces</label><select id="bounces"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
+        <div class="row"><label>Base SPP</label><select id="samples"><option selected>1</option><option>2</option><option>4</option><option>8</option></select></div>
+        <div class="row"><label>Adaptive</label><select id="adaptive"><option value="1" selected>On</option><option value="0">Off</option></select></div>
+        <div class="row"><label>Temporal</label><select id="temporal"><option value="1" selected>On</option><option value="0">Off</option></select></div>
+        <div class="row"><label>Denoise</label><select id="denoise"><option value="1" selected>On</option><option value="0">Off</option></select></div>
+        <div class="row"><label>Reconstruct</label><select id="recon"><option value="1" selected>High quality</option><option value="0">Nearest</option></select></div>
+        <button id="renderSide" class="renderBtn" style="width:100%">Render Final Image</button>
+        <p class="small"><span class="tag">R3D Renderer</span><br>WebGPU SAH BVH, exact primitive traversal, adaptive hierarchy, reservoir reuse, temporal accumulation and depth/normal-guided denoise. CPU path tracer is the fallback.</p>
+      </div>
+    </aside>
+  </div>
+  <div class="status"><span id="status">R3D booting…</span><span id="size">0×0</span></div>
+</div>
+<div id="modal" class="modal"><div class="renderPanel"><div class="renderHead"><b>R3D Final Render</b><span id="renderBackend" class="tag">Preparing</span><span id="renderInfo" class="small">Preparing…</span><span class="spacer"></span><button id="closeRender">Close</button></div><div class="renderCanvasWrap"><canvas id="rc" width="960" height="600"></canvas></div><div class="renderFoot"><div class="progress"><i id="bar"></i></div><span id="pct">0%</span><span id="stats" class="small"></span><span class="spacer"></span><button id="cancel">Cancel</button><button id="save">Save PNG</button></div></div></div>
+<script src="r3d-editor.js"></script>
+<script src="r3d-renderer.js"></script>
+<script src="r3d-render-watchdog.js"></script>
+<script src="r3d-output-orientation.js"></script>
+<script src="r3d-input-priority-shim.js"></script>
+<script src="r3d-local-orbit.js"></script>
+<script src="r3d-camera-gizmos.js"></script>
+<script src="r3d-bootstrap.js"></script>
+</body>
+</html>
