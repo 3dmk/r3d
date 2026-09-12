@@ -13,7 +13,7 @@ for(const id of ['gl','scene','status','renderBtn','renderSide','selectTool','mo
 for(const forbidden of ['id="modal"','id="rc"','id="renderBackend"','id="renderInfo"','id="pct"','id="bar"','id="stats"'])if(html.includes(forbidden))fail(`legacy render-window markup returned: ${forbidden}`);
 for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(!/\bsrc=/.test(m[1]))fail('inline script body is forbidden');if(m[2].trim())fail('external script tag contains inline body')}
 const scripts=[...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(m=>m[1]);
-const expected=['r3d-editor.js?v=rc7','r3d-renderer.js?v=rc7','r3d-render-watchdog.js?v=rc7','r3d-input-priority-shim.js?v=rc7','r3d-local-orbit.js?v=rc7','r3d-camera-gizmos.js?v=rc7','r3d-render-window.js?v=rc7','r3d-bootstrap.js?v=rc7'];
+const expected=['r3d-editor.js?v=rc7','r3d-renderer.js?v=rc7','r3d-render-watchdog.js?v=rc7-orientfix1','r3d-input-priority-shim.js?v=rc7','r3d-local-orbit.js?v=rc7','r3d-camera-gizmos.js?v=rc7','r3d-render-window.js?v=rc7','r3d-bootstrap.js?v=rc7'];
 if(JSON.stringify(scripts)!==JSON.stringify(expected))fail('RC7 script load order/version changed');
 if(!html.includes('v1.0 RC7'))fail('visible RC7 build marker missing');
 for(const f of files.filter(f=>f.endsWith('.js'))){try{execFileSync(process.execPath,['--check',path.join(root,f)],{stdio:'pipe'})}catch(e){fail(`${f} syntax error\n${e.stderr?.toString()||e.message}`)}const s=read(f);for(const banned of ['LitePix','3DLite','ThreeDLite'])if(s.includes(banned))fail(`${f} contains cross-project term ${banned}`)}
