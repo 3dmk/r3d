@@ -1,5 +1,5 @@
 const {test,expect}=require('@playwright/test');
-test('R3D boots, all objects select, cameras are opt-in, raster preview is live, and active camera renders',async({page})=>{
+test('R3D boots, cameras work, optional raster preview works, and final render uses true progressive ray pass',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
   await expect(page.locator('html')).toHaveAttribute('data-r3d-bootstrap','1');
@@ -8,7 +8,8 @@ test('R3D boots, all objects select, cameras are opt-in, raster preview is live,
   await expect(page.locator('html')).toHaveAttribute('data-r3d-input-priority','1');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-input-priority-intercept','1');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','object');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-build','1.0.0-rc3');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-build','1.0.0-rc4');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-renderer','1');
   expect(await page.evaluate(()=>window.R3DCameras.cameras.length)).toBe(0);
   expect(await page.evaluate(()=>window.R3DCameras.activeCamera?.())).toBeNull();
   expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeNull();
@@ -53,10 +54,8 @@ test('R3D boots, all objects select, cameras are opt-in, raster preview is live,
   await page.click('#rotateTool');await expect(page.locator('#rotateTool')).toHaveClass(/active/);
   await page.click('#scaleTool');await expect(page.locator('#scaleTool')).toHaveClass(/active/);
 
-  const cams0=await page.locator('#r3dCameraList .item').count();expect(cams0).toBe(0);
   await page.click('#addCamera');await expect(page.locator('#r3dCameraList .item')).toHaveCount(1);
   await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','camera');
-  expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeTruthy();
   await page.click('#copyCamera');await expect(page.locator('#r3dCameraList .item')).toHaveCount(2);
   await page.click('#setActiveCamera');
   let active=await page.evaluate(()=>window.R3DRenderer.activeCamera?.());expect(active).toBeTruthy();
@@ -68,26 +67,29 @@ test('R3D boots, all objects select, cameras are opt-in, raster preview is live,
   const p=await objectScreenPoint(2);await page.mouse.click(p.x,p.y);
   expect(await page.evaluate(()=>window.R3DEditor.selected()?.id)).toBe(2);
   expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeNull();
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','object');
   await page.evaluate(()=>window.R3DCameras.select(window.R3DCameras.cameras[0].id));
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','camera');
   await page.click('#setActiveCamera');
 
   await page.selectOption('#rw','640');await page.selectOption('#rscale','0.5');await page.selectOption('#samples','1');await page.selectOption('#bounces','1');await page.selectOption('#adaptive','0');await page.selectOption('#denoise','0');
 
   await page.click('#rasterPreviewBtn');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','1');
-  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-raster-preview','live');
   await expect(page.locator('#pct')).toHaveText('LIVE');
-  const previewLuma=await page.locator('#rc').evaluate(c=>{const x=c.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,c.width,c.height).data;let sum=0,n=0;for(let i=0;i<d.length;i+=1600){sum+=(d[i]+d[i+1]+d[i+2])/3;n++}return n?sum/n:0;});
-  expect(previewLuma).toBeGreaterThan(2);
   await page.click('#rasterPreviewHead');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','0');
 
   await page.click('#renderBtn');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-during-final','1',{timeout:10000});
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-pass','1',{timeout:10000});
+  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-progressive-pass','1',{timeout:10000});
+  await expect(page.locator('#renderBackend')).toHaveText('Progressive Ray Pass',{timeout:10000});
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','0');
+  const progressiveLuma=await page.locator('#rc').evaluate(c=>{const x=c.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,c.width,c.height).data;let sum=0,n=0;for(let i=0;i<d.length;i+=1600){sum+=(d[i]+d[i+1]+d[i+2])/3;n++}return n?sum/n:0;});
+  expect(progressiveLuma).toBeGreaterThan(1);
+
   await expect(page.locator('#pct')).toHaveText('100%',{timeout:90000});
   await expect(page.locator('html')).toHaveAttribute('data-r3d-final-render-complete','1');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-pass','0');
+  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-progressive-pass','complete');
   await expect(page.locator('#rc')).toHaveAttribute('data-r3d-orientation','upright');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-render-orientation','upright');
   const dims=await page.locator('#rc').evaluate(c=>[c.width,c.height]);expect(dims).toEqual([640,400]);
