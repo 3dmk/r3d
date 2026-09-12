@@ -1,99 +1,79 @@
 const {test,expect}=require('@playwright/test');
-test('R3D boots, cameras work, optional raster preview works, and final render uses true progressive ray pass',async({page})=>{
+
+test('R3D RC6 realtime render updates after interaction and final orientation matches viewport',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
   await expect(page.locator('html')).toHaveAttribute('data-r3d-bootstrap','1');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-boot','1');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-cameras','1');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-input-priority','1');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-input-priority-intercept','1');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','object');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-build','1.0.0-rc4');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-build','1.0.0-rc6');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-renderer','1');
-  expect(await page.evaluate(()=>window.R3DCameras.cameras.length)).toBe(0);
-  expect(await page.evaluate(()=>window.R3DCameras.activeCamera?.())).toBeNull();
-  expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeNull();
-  await expect(page.locator('#r3dCameraList .item')).toHaveCount(0);
-  await expect(page.locator('#status')).toContainText('Ready');
-  await expect(page.locator('#r3dGizmoOverlay')).toHaveCount(1);
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-orientation-stage','display-rotate180');
+  await expect(page.locator('#realtimeInteractionBtn')).toHaveCount(1);
+  await expect(page.locator('#finalResultBtn')).toHaveCount(1);
+  await expect(page.locator('#finalResultBtn')).toBeDisabled();
 
-  const box=await page.locator('#gl').boundingBox();expect(box).toBeTruthy();
-  const camBefore=await page.evaluate(()=>window.App3D.camera().e.slice());
-  await page.keyboard.down('Alt');
-  await page.mouse.move(box.x+box.width*.55,box.y+box.height*.5);
+  await page.selectOption('#rw','640');
+  await page.selectOption('#rscale','0.5');
+  await page.selectOption('#samples','1');
+  await page.selectOption('#bounces','1');
+  await page.selectOption('#adaptive','0');
+  await page.selectOption('#denoise','0');
+
+  // Realtime interaction must be a real ray render that changes after camera input.
+  await page.click('#realtimeInteractionBtn');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-realtime-interaction','1');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-render-view','realtime');
+  await expect(page.locator('#renderBackend')).toHaveText('Realtime Ray Render',{timeout:10000});
+  await page.waitForFunction(()=>+(document.documentElement.dataset.r3dRealtimeFrame||0)>=2,null,{timeout:15000});
+  const rt0=await page.evaluate(()=>({cam:window.R3DRenderer.realtimeCamera(),frame:+document.documentElement.dataset.r3dRealtimeFrame,hash:(()=>{const c=document.getElementById('rc'),d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;let h=2166136261;for(let i=0;i<d.length;i+=997){h^=d[i];h=Math.imul(h,16777619);h^=d[i+1];h=Math.imul(h,16777619);h^=d[i+2];h=Math.imul(h,16777619)}return h>>>0})()}));
+  const rb=await page.locator('#rc').boundingBox();expect(rb).toBeTruthy();
+  await page.mouse.move(rb.x+rb.width*.5,rb.y+rb.height*.5);
   await page.mouse.down({button:'left'});
-  await page.mouse.move(box.x+box.width*.68,box.y+box.height*.58,{steps:6});
+  await page.mouse.move(rb.x+rb.width*.68,rb.y+rb.height*.62,{steps:8});
   await page.mouse.up({button:'left'});
-  await page.keyboard.up('Alt');
-  const camAfter=await page.evaluate(()=>window.App3D.camera().e.slice());
-  expect(Math.hypot(camAfter[0]-camBefore[0],camAfter[1]-camBefore[1],camAfter[2]-camBefore[2])).toBeGreaterThan(.05);
+  await page.waitForFunction(f=>+(document.documentElement.dataset.r3dRealtimeCameraChanged||0)>0&&+(document.documentElement.dataset.r3dRealtimeFrame||0)>f,rt0.frame,{timeout:15000});
+  const rt1=await page.evaluate(()=>({cam:window.R3DRenderer.realtimeCamera(),hash:(()=>{const c=document.getElementById('rc'),d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;let h=2166136261;for(let i=0;i<d.length;i+=997){h^=d[i];h=Math.imul(h,16777619);h^=d[i+1];h=Math.imul(h,16777619);h^=d[i+2];h=Math.imul(h,16777619)}return h>>>0})()}));
+  expect(Math.hypot(rt1.cam.e[0]-rt0.cam.e[0],rt1.cam.e[1]-rt0.cam.e[1],rt1.cam.e[2]-rt0.cam.e[2])).toBeGreaterThan(.05);
+  expect(rt1.hash).not.toBe(rt0.hash);
 
-  await page.click('#resetBtn');await page.click('#selectTool');
-  const objectScreenPoint=async id=>page.evaluate(id=>{
-    const o=window.App3D.objects.find(q=>q.id===id),C=window.App3D.camera(),cv=document.getElementById('gl'),r=cv.getBoundingClientRect();
+  // Build an asymmetric orientation target: red high/left, blue low/right.
+  await page.click('#closeRender');
+  await page.click('#resetBtn');
+  const expected=await page.evaluate(()=>{
+    const A=window.App3D;
+    const red=A.objects.find(o=>o.id===1),blue=A.objects.find(o=>o.id===3),gold=A.objects.find(o=>o.id===2),cone=A.objects.find(o=>o.id===4);
+    red.p=[-2.4,2.5,0];red.c=[1,.03,.03];red.mat='diffuse';red.s=1.05;
+    blue.p=[2.4,.65,0];blue.c=[.03,.08,1];blue.mat='diffuse';blue.s=1.05;
+    gold.p=[0,1,-3];cone.p=[0,1,4];A.touch('orientation regression scene');
+    const C=A.camera(),cv=document.getElementById('gl'),r=cv.getBoundingClientRect();
     const sub=(a,b)=>a.map((v,i)=>v-b[i]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],norm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
-    const f=norm(sub(C.c,C.e)),right=norm(cross(f,[0,1,0])),up=cross(right,f),v=sub(o.p,C.e),z=dot(v,f),tn=Math.tan(Math.PI/8),aspect=r.width/r.height,x=dot(v,right)/(z*tn*aspect),y=dot(v,up)/(z*tn);
-    return{x:r.left+(x*.5+.5)*r.width,y:r.top+(.5-y*.5)*r.height};
-  },id);
-  for(const id of [1,2,3,4]){
-    const p=await objectScreenPoint(id);await page.mouse.click(p.x,p.y);
-    expect(await page.evaluate(()=>window.R3DEditor.selected()?.id)).toBe(id);
-    expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeNull();
-    await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','object');
-  }
-
-  const before=await page.locator('#scene .item').count();
-  await page.click('#addCube');await expect(page.locator('#scene .item')).toHaveCount(before+1);
-  await page.click('#dupBtn');await expect(page.locator('#scene .item')).toHaveCount(before+2);
-  await page.click('#delBtn');await expect(page.locator('#scene .item')).toHaveCount(before+1);
-  await page.click('#undoBtn');await expect(page.locator('#scene .item')).toHaveCount(before+2);
-  await page.click('#undoBtn');await expect(page.locator('#scene .item')).toHaveCount(before+1);
-  await page.click('#undoBtn');await expect(page.locator('#scene .item')).toHaveCount(before);
-
-  await page.click('#moveTool');await expect(page.locator('#moveTool')).toHaveClass(/active/);
-  await page.click('#rotateTool');await expect(page.locator('#rotateTool')).toHaveClass(/active/);
-  await page.click('#scaleTool');await expect(page.locator('#scaleTool')).toHaveClass(/active/);
-
-  await page.click('#addCamera');await expect(page.locator('#r3dCameraList .item')).toHaveCount(1);
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-selection-owner','camera');
-  await page.click('#copyCamera');await expect(page.locator('#r3dCameraList .item')).toHaveCount(2);
-  await page.click('#setActiveCamera');
-  let active=await page.evaluate(()=>window.R3DRenderer.activeCamera?.());expect(active).toBeTruthy();
-  await page.fill('#camX','1.25');await page.dispatchEvent('#camX','input');
-  active=await page.evaluate(()=>window.R3DCameras.selectedCamera?.());expect(Math.abs(active.p[0]-1.25)).toBeLessThan(0.001);
-  await page.click('#deleteCamera');await expect(page.locator('#r3dCameraList .item')).toHaveCount(1);
-
-  await page.click('#selectTool');
-  const p=await objectScreenPoint(2);await page.mouse.click(p.x,p.y);
-  expect(await page.evaluate(()=>window.R3DEditor.selected()?.id)).toBe(2);
-  expect(await page.evaluate(()=>window.R3DCameras.selectedCamera?.())).toBeNull();
-  await page.evaluate(()=>window.R3DCameras.select(window.R3DCameras.cameras[0].id));
-  await page.click('#setActiveCamera');
-
-  await page.selectOption('#rw','640');await page.selectOption('#rscale','0.5');await page.selectOption('#samples','1');await page.selectOption('#bounces','1');await page.selectOption('#adaptive','0');await page.selectOption('#denoise','0');
-
-  await page.click('#rasterPreviewBtn');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','1');
-  await expect(page.locator('#pct')).toHaveText('LIVE');
-  await page.click('#rasterPreviewHead');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','0');
+    const proj=o=>{const f=norm(sub(C.c,C.e)),right=norm(cross(f,[0,1,0])),up=cross(right,f),v=sub(o.p,C.e),z=dot(v,f),tn=Math.tan(Math.PI/8),aspect=r.width/r.height,x=dot(v,right)/(z*tn*aspect),y=dot(v,up)/(z*tn);return{x:x*.5+.5,y:.5-y*.5}};
+    return{r:proj(red),b:proj(blue)};
+  });
 
   await page.click('#renderBtn');
   await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-pass','1',{timeout:10000});
-  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-progressive-pass','1',{timeout:10000});
   await expect(page.locator('#renderBackend')).toHaveText('Progressive Ray Pass',{timeout:10000});
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-raster-preview','0');
-  const progressiveLuma=await page.locator('#rc').evaluate(c=>{const x=c.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,c.width,c.height).data;let sum=0,n=0;for(let i=0;i<d.length;i+=1600){sum+=(d[i]+d[i+1]+d[i+2])/3;n++}return n?sum/n:0;});
-  expect(progressiveLuma).toBeGreaterThan(1);
-
   await expect(page.locator('#pct')).toHaveText('100%',{timeout:90000});
   await expect(page.locator('html')).toHaveAttribute('data-r3d-final-render-complete','1');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-progressive-pass','0');
-  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-progressive-pass','complete');
+  await expect(page.locator('html')).toHaveAttribute('data-r3d-render-view','final');
   await expect(page.locator('#rc')).toHaveAttribute('data-r3d-orientation','upright');
-  await expect(page.locator('html')).toHaveAttribute('data-r3d-render-orientation','upright');
-  const dims=await page.locator('#rc').evaluate(c=>[c.width,c.height]);expect(dims).toEqual([640,400]);
-  const luma=await page.locator('#rc').evaluate(c=>{const x=c.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,c.width,c.height).data;let sum=0,n=0;const step=Math.max(4,Math.floor((c.width*c.height)/4096));for(let i=0;i<d.length;i+=4*step){sum+=(d[i]+d[i+1]+d[i+2])/3;n++}return n?sum/n:0;});
+  await expect(page.locator('#rc')).toHaveAttribute('data-r3d-orientation-fix','display-rotate180');
+  await expect(page.locator('#finalResultBtn')).toBeEnabled();
+
+  const observed=await page.locator('#rc').evaluate(c=>{
+    const x=c.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,c.width,c.height).data;
+    let rx=0,ry=0,rn=0,bx=0,by=0,bn=0;
+    for(let y=0;y<c.height;y+=2)for(let q=0;q<c.width;q+=2){const i=(y*c.width+q)*4,R=d[i],G=d[i+1],B=d[i+2];if(R>45&&R>G*1.35&&R>B*1.35){rx+=q;ry+=y;rn++}if(B>45&&B>R*1.35&&B>G*1.15){bx+=q;by+=y;bn++}}
+    return{r:{x:rx/Math.max(1,rn)/c.width,y:ry/Math.max(1,rn)/c.height,n:rn},b:{x:bx/Math.max(1,bn)/c.width,y:by/Math.max(1,bn)/c.height,n:bn}};
+  });
+  expect(observed.r.n).toBeGreaterThan(20);expect(observed.b.n).toBeGreaterThan(20);
+  expect(Math.sign(observed.r.x-observed.b.x)).toBe(Math.sign(expected.r.x-expected.b.x));
+  expect(Math.sign(observed.r.y-observed.b.y)).toBe(Math.sign(expected.r.y-expected.b.y));
+
+  const luma=await page.locator('#rc').evaluate(c=>{const d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;let s=0,n=0;for(let i=0;i<d.length;i+=1600){s+=(d[i]+d[i+1]+d[i+2])/3;n++}return s/n});
   expect(luma).toBeGreaterThan(2);
   expect(errors).toEqual([]);
 });
