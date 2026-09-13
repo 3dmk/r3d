@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v14.8 Engineering Pass 1
+      - name: Rebuild Polygon Rush v14.9 Engineering Pass 2
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -43,10 +43,13 @@ jobs:
           p.write_text(s)
           PY
           node polygon-rush/engineering/pass1_patch.mjs index.html
-          grep -q "Polygon Rush v14.8" index.html
+          node polygon-rush/engineering/pass2_patch.mjs index.html
+          grep -q "Polygon Rush v14.9" index.html
           grep -q "car.pos.y+.90" index.html
           grep -q "ais.length!==4" index.html
           grep -q "function shapeDriveControls" index.html
+          grep -q "bodyOwners:new Map()" index.html
+          grep -q "o.castShadow=false" index.html
           test "$(wc -c < index.html)" -gt 50000
 
       - name: Setup Emscripten
@@ -96,6 +99,9 @@ jobs:
           assert "function shapeDriveControls" in s
           assert "box3dApplyControl(car,shaped)" in s
           assert "applyArcadeMovement(car,shaped,dt)" in s
+          assert "bodyOwners:new Map()" in s
+          assert "o.castShadow=false;world.add(o)" in s
+          assert "new THREE.BoxGeometry(1.8,.8,.32),bmat)" in s
           PY
           node --check /tmp/polygon-rush-inline.js
           python3 - <<'PY'
