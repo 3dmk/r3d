@@ -52,7 +52,7 @@ jobs:
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
             'const WHEEL_PHYS=','car._wheelPhysics=wheelStates',
             'w.userData.rim.rotation.y=w.userData.spin',
-            'Physics backend: WHEEL PHYSICS','wheelPhysics:true',
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>',
             'function runArcadeSolverSelfTest','START invariant failed: expected 1 player + 4 opponents',
             'three.min.js'
           ]
@@ -99,24 +99,24 @@ jobs:
             if(boot.version!=='15.5'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong physics build: '+JSON.stringify(boot));
             if(!(boot.selfTestDistance>2))throw new Error('Wheel solver self-test did not move: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true,{timeout:5000});
-            const start=await page.evaluate(()=>window.eval('({diag:window.__polygonRush,aiCount:ais.length,hasPlayer:!!player,wheels:player.g.userData.allWheels.length})'));
-            if(!start.hasPlayer||start.aiCount!==4||start.diag.racers!==5||start.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.state==='function',{timeout:5000});
+            const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
+            if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
             await page.waitForFunction(()=>window.__polygonRush?.go===true,{timeout:6000});
-            const ai0=await page.evaluate(()=>window.eval('ais.map(a=>[a.pos.x,a.pos.z])'));
+            const ai0=await page.evaluate(()=>window.__polygonRush.state().ai);
             await page.waitForTimeout(1800);
-            const ai1=await page.evaluate(()=>window.eval('ais.map(a=>[a.pos.x,a.pos.z])'));
+            const ai1=await page.evaluate(()=>window.__polygonRush.state().ai);
             const aiMoved=ai1.some((p,i)=>Math.hypot(p[0]-ai0[i][0],p[1]-ai0[i][1])>0.5);
             if(!aiMoved)throw new Error('AI wheel-physics movement gate failed');
-            const p0=await page.evaluate(()=>window.eval('({p:[player.pos.x,player.pos.z],h:player.heading,spin:player.g.userData.allWheels.map(w=>w.userData.spin||0)})'));
+            const p0=await page.evaluate(()=>window.__polygonRush.state().player);
             await page.keyboard.down('KeyW');
             await page.waitForTimeout(1400);
-            const pMid=await page.evaluate(()=>window.eval('({p:[player.pos.x,player.pos.z],speed:Math.abs(player.speed||0),spin:player.g.userData.allWheels.map(w=>w.userData.spin||0),states:player._wheelPhysics?.length||0})'));
+            const pMid=await page.evaluate(()=>window.__polygonRush.state().player);
             await page.keyboard.down('KeyA');
             await page.waitForTimeout(900);
             await page.keyboard.up('KeyA');
             await page.keyboard.up('KeyW');
-            const p1=await page.evaluate(()=>window.eval('({p:[player.pos.x,player.pos.z],h:player.heading,speed:Math.abs(player.speed||0),spin:player.g.userData.allWheels.map(w=>w.userData.spin||0)})'));
+            const p1=await page.evaluate(()=>window.__polygonRush.state().player);
             const playerDist=Math.hypot(p1.p[0]-p0.p[0],p1.p[1]-p0.p[1]);
             const headingChange=Math.abs(p1.h-p0.h);
             const wheelSpinChanged=p1.spin.some((v,i)=>Math.abs(v-p0.spin[i])>0.2);
