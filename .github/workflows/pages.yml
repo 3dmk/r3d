@@ -19,25 +19,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v14.6.2 vehicle hotfix
+      - name: Rebuild Polygon Rush v14.7 L3N-1000 candidate
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          # Repair the known split-source boundary corruption.
           s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
-
-          # Box3D hull is 1.24 m tall and uses its body origin as its center.
-          # Spawn the native body above the visual root and compensate on sync,
-          # otherwise all five racers begin embedded in the road collider.
           old="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y,car.pos.z,car.heading);"
-          new="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y+.72,car.pos.z,car.heading);"
+          new="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y+.90,car.pos.z,car.heading);"
           if old not in s: raise SystemExit('Box3D create vehicle signature not found')
           s=s.replace(old,new,1)
           old="car.pos.set(f[base],f[base+1],f[base+2]);"
-          new="car.pos.set(f[base],f[base+1]-.72,f[base+2]);"
+          new="car.pos.set(f[base],f[base+1]-.90,f[base+2]);"
           if old not in s: raise SystemExit('Box3D sync position not found')
           s=s.replace(old,new,1)
 
@@ -46,13 +41,13 @@ jobs:
           if old not in s: raise SystemExit('expected start() function not found')
           s=s.replace(old,new,1)
           s=s.replace("$('#start').onclick=start;","const startButton=$('#start');if(startButton)startButton.addEventListener('click',e=>{e.preventDefault();start()});",1)
-          s=s.replace('Polygon Rush v14.6 GitHub Box3D','Polygon Rush v14.6.2 Vehicle Hotfix')
-          s=s.replace('v14.6 • GITHUB BOX3D LIVE','v14.6.2 • VEHICLE + AI HOTFIX')
-          s=s.replace('Polygon Rush v14.6\\n','Polygon Rush v14.6.2\\n')
+          s=s.replace('Polygon Rush v14.6 GitHub Box3D','Polygon Rush v14.7 L3N-1000 Candidate')
+          s=s.replace('v14.6 • GITHUB BOX3D LIVE','v14.7 • L3N-1000 TUNED BOX3D')
+          s=s.replace('Polygon Rush v14.6\\n','Polygon Rush v14.7\\n')
           p.write_text(s)
           PY
-          grep -q "Polygon Rush v14.6.2" index.html
-          grep -q "car.pos.y+.72" index.html
+          grep -q "Polygon Rush v14.7" index.html
+          grep -q "car.pos.y+.90" index.html
           grep -q "ais.length!==4" index.html
           test "$(wc -c < index.html)" -gt 50000
 
@@ -98,8 +93,8 @@ jobs:
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           assert "ais.length!==4" in s
           assert "BOX3D.bodies.size!==5" in s
-          assert "car.pos.y+.72" in s
-          assert "f[base+1]-.72" in s
+          assert "car.pos.y+.90" in s
+          assert "f[base+1]-.90" in s
           PY
           node --check /tmp/polygon-rush-inline.js
           python3 - <<'PY'
