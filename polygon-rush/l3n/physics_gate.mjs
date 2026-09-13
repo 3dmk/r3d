@@ -6,6 +6,9 @@ import { pathToFileURL } from 'node:url';
 const runtimePath = path.resolve(process.argv[2] || 'polygon-rush/l3n/runtime/box3d_bridge.js');
 const runtimeDir = path.dirname(runtimePath);
 const reportPath = path.resolve(process.argv[3] || 'polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json');
+const candidatePath = process.argv[4] ? path.resolve(process.argv[4]) : null;
+const candidateReport = candidatePath ? JSON.parse(fs.readFileSync(candidatePath,'utf8')) : null;
+const candidate = candidateReport?.bestParameters || candidateReport?.candidate || null;
 
 function assert(cond, message){ if(!cond) throw new Error(message); }
 function finiteArray(a){ return a.every(Number.isFinite); }
@@ -19,6 +22,14 @@ async function loadFactory(){
     const mod = await import(pathToFileURL(runtimePath).href);
     return mod?.default || mod;
   }
+}
+
+if(candidate){
+  for(const k of ['engineForce','brakeForce','lateralGain','yawTorque','linearDamping','angularDamping','friction','restitution','spawnLift','fixedDt','subSteps'])
+    assert(Number.isFinite(candidate[k]),`Candidate manifest missing finite ${k}`);
+  assert(candidate.fixedDt===1/60,'Candidate changed protected fixedDt');
+  assert(candidate.subSteps===4,'Candidate changed protected subSteps');
+  assert(candidate.spawnLift >= (candidate.hullHalfY||0.62)+0.10,'Candidate spawnLift risks initial penetration');
 }
 
 const factory = await loadFactory();
@@ -41,7 +52,8 @@ const wall = m._pr_b3_create_static_box(world, 0, 1.1, 24, 8, 1.1, 0.6, 0, 101);
 assert(floor > 0 && wall > 0, 'Static collision world creation failed');
 
 const starts = [-6,-3,0,3,6];
-const bodies = starts.map((x,i)=>m._pr_b3_create_vehicle(world, x, 2.4, -i*6, 0));
+const startY = candidate?.spawnLift ?? 2.4;
+const bodies = starts.map((x,i)=>m._pr_b3_create_vehicle(world, x, startY, -i*6, 0));
 assert(bodies.length === 5 && bodies.every(h=>h>0), 'Failed to create five racer bodies');
 assert(new Set(bodies).size === 5, 'Racer body handles are not unique');
 
@@ -65,7 +77,7 @@ function contacts(){
 
 const initial=bodies.map(state);
 let hitEvents=0, maxSpeed=0, minY=Infinity, maxY=-Infinity;
-const dt=1/60, subSteps=4;
+const dt=candidate?.fixedDt ?? 1/60, subSteps=candidate?.subSteps ?? 4;
 for(let frame=0; frame<420; frame++){
   for(let i=0;i<bodies.length;i++){
     const s=state(bodies[i]);
@@ -74,7 +86,8 @@ for(let frame=0; frame<420; frame++){
     const throttle=frame>55 ? (i===0?1.0:0.55+0.08*i) : 0;
     const steer=i===1 && frame>120 && frame<240 ? 0.35 : 0;
     const brake=i===2 && frame>260 && frame<330 ? 0.7 : 0;
-    m._pr_b3_apply_vehicle_control(world,bodies[i],throttle,brake,steer,0,0,1,speed);
+    const grip = i===4 ? 0.70 : 1.0;
+    m._pr_b3_apply_vehicle_control(world,bodies[i],throttle,brake,steer,0,0,grip,speed);
   }
   m._pr_b3_step(world,dt,subSteps);
   hitEvents += contacts();
@@ -91,11 +104,13 @@ for(let frame=0; frame<420; frame++){
 const final=bodies.map(state);
 const leadDistance=Math.hypot(final[0][0]-initial[0][0], final[0][2]-initial[0][2]);
 const settled=final.filter(s=>s[1]>0.45 && s[1]<1.2).length;
+const finiteFinal=final.every(finiteArray);
 
 assert(hitEvents>0, 'No Box3D hit/contact events were observed');
 assert(leadDistance>4, `Throttle did not move lead vehicle enough: ${leadDistance.toFixed(3)} m`);
 assert(maxSpeed>2, `Vehicle forces did not produce meaningful velocity: ${maxSpeed.toFixed(3)} m/s`);
 assert(settled>=4, `Too many racer bodies failed road contact/settling: ${settled}/5`);
+assert(finiteFinal,'Final racer states are not finite');
 assert(minY>-5 && maxY<25, `Physics state escaped sane vertical bounds: ${minY}..${maxY}`);
 
 for(const h of bodies) m._pr_b3_destroy_body(world,h);
@@ -103,6 +118,9 @@ for(const h of bodies) m._pr_b3_destroy_body(world,h);
 const report={
   gate:'Polygon Rush Box3D Runtime Physics Gate',
   passed:true,
+  candidateCertified:!!candidate,
+  candidate,
+  startY,
   fixedDt:dt,
   subSteps,
   requiredExports:required,
@@ -116,18 +134,11 @@ const report={
   settledRacers:settled,
   verticalBounds:[minY,maxY],
   checks:[
-    'runtime module initialized',
-    'required native exports present',
-    'WASM heaps exposed',
-    'Box3D world created',
-    'static floor and obstacle created',
-    'exactly five unique racer bodies created',
-    'all sampled body states remained finite',
-    'gravity produced road contacts',
-    'contact/hit event bridge produced events',
-    'vehicle control forces produced movement',
-    'most racers settled on physical ground',
-    '1/60 fixed step with 4 substeps remained stable'
+    'runtime module initialized','required native exports present','WASM heaps exposed','Box3D world created',
+    'static floor and obstacle created','exactly five unique racer bodies created','all sampled body states remained finite',
+    'gravity produced road contacts','contact/hit event bridge produced events','vehicle control forces produced movement',
+    'most racers settled on physical ground','1/60 fixed step with 4 substeps remained stable',
+    ...(candidate?['exact learned candidate compiled and exercised','candidate spawn lift cleared penetration margin','reduced-grip racer remained finite']:[])
   ]
 };
 fs.mkdirSync(path.dirname(reportPath),{recursive:true});
