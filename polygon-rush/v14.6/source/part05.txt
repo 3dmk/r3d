@@ -1,0 +1,156 @@
+*speedAbs*.13;
+
+ car.heading+=steer*dt*(long>=0?1:-1);
+ const c=Math.cos(car.heading),si=Math.sin(car.heading);
+ car.vel.x=lat*c+long*si;
+ car.vel.z=-lat*si+long*c;
+
+ const near=nearestTrack(car.pos),surf=sampleTrackSurface(car.pos),groundY=surf.y+.18;
+ const nextY=trackSamples[(near.idx+3)%trackSamples.length].y,prevY=trackSamples[(near.idx-3+trackSamples.length)%trackSamples.length].y;
+ const crest=nextY-prevY;
+ if(!car.airborne&&speedAbs>22&&crest<-.55&&car.pos.y<=groundY+.08){
+   car.airborne=true;car.vy=MOVE.jumpBoost+speedAbs*.045;
+ }
+ if(car.airborne){
+   car.airTime+=dt;car.vy-=MOVE.gravity*dt;car.pos.y+=car.vy*dt;
+   car.heading+=(controls.steer||0)*dt*.45;
+   const vis=car.g?.userData?.visual;
+   if(vis){vis.rotation.x+=(controls.throttle-controls.brake)*dt*.24;vis.rotation.z-=(controls.steer||0)*dt*.18}
+   if(car.pos.y<=groundY){
+     const impact=Math.abs(car.vy);car.pos.y=groundY;car.airborne=false;car.airTime=0;
+     if(impact>5.8){car.suspensionDamage=clamp(car.suspensionDamage+(impact-5.8)*.032,0,.8);car.health=Math.max(0,car.health-(impact-5.8)*1.4);car.vel.multiplyScalar(.94);cameraShake=Math.max(cameraShake,Math.min(.85,impact*.07))}
+     car.vy=0;
+   }
+ }else{
+   car.pos.y+=(groundY-car.pos.y)*Math.min(1,dt*10);car.vy=0;
+ }
+
+ car.pos.addScaledVector(car.vel,dt);
+ const after=localVelocity(car);
+ car.slip=Math.atan2(Math.abs(after.lat),Math.abs(after.long)+.25);
+ car.speed=after.long;
+ car.bottomOut=surface==='ROUGH'&&speedAbs>24&&Math.sin((car.pos.x+car.pos.z)*.18)>.86;
+
+ const vis=car.g?.userData?.visual;
+ if(vis){
+   const terrainPitch=clamp((nextY-prevY)*.05,-.12,.12),dynPitch=clamp((after.long-before.long)*-.008,-.08,.08),
+         dynRoll=clamp(-(controls.steer||0)*Math.min(speedAbs/30,1)*.12-after.lat*.008,-.17,.17);
+   car.g.userData.pitch+=(terrainPitch+dynPitch-car.g.userData.pitch)*Math.min(1,dt*7);
+   car.g.userData.roll+=(dynRoll-car.g.userData.roll)*Math.min(1,dt*7);
+   vis.rotation.x=car.g.userData.pitch;vis.rotation.z=car.g.userData.roll;
+ }
+ return {surf,near,lv:after,surface};
+}
+function applyImpactDamage(car,severity,kind='collision'){
+ ensureMoveState(car);
+ const d=clamp(severity,0,1.5);
+ car.health=Math.max(0,car.health-d*14);
+ if(kind==='landing'||kind==='bottom')car.suspensionDamage=clamp(car.suspensionDamage+d*.12,0,.8);
+ else{
+   car.engineDamage=clamp(car.engineDamage+d*.045,0,.7);
+   car.steeringDamage=clamp(car.steeringDamage+d*.035,0,.65);
+   car.brakeDamage=clamp(car.brakeDamage+d*.025,0,.6);
+ }
+ cameraShake=Math.max(cameraShake,clamp(d*.7,0,.85));
+}
+function resolveCarCollision(a,b){
+ const dvec=a.pos.clone().sub(b.pos);dvec.y=0;const d=dvec.length(),r=MOVE.collisionRadius;
+ if(d<=.001||d>=r)return;
+ const n=dvec.multiplyScalar(1/d),pen=r-d,rel=a.vel.clone().sub(b.vel).dot(n);
+ a.pos.addScaledVector(n,pen*.5);b.pos.addScaledVector(n,-pen*.5);
+ if(rel<0){
+   const impulse=-rel*.58;a.vel.addScaledVector(n,impulse);b.vel.addScaledVector(n,-impulse);
+   a.heading+=new THREE.Vector3(Math.cos(a.heading),0,-Math.sin(a.heading)).dot(n)*impulse*.018;
+   b.heading-=new THREE.Vector3(Math.cos(b.heading),0,-Math.sin(b.heading)).dot(n)*impulse*.018;
+   applyImpactDamage(a,Math.abs(rel)/22,'collision');applyImpactDamage(b,Math.abs(rel)/22,'collision');
+ }
+}
+function resolveWorldCollision(car,obj,radius=1.9,breakable=false){
+ if(!obj.visible)return;
+ const dvec=car.pos.clone().sub(obj.position);dvec.y=0;const d=dvec.length();if(d<=.001||d>radius)return;
+ const n=dvec.multiplyScalar(1/d),speed=car.vel.length();
+ if(breakable&&speed>14){obj.visible=false;obj.userData.alive=false;car.vel.multiplyScalar(.9);applyImpactDamage(car,speed/48,'collision');return}
+ car.pos.addScaledVector(n,radius-d+.02);const vn=car.vel.dot(n);if(vn<0)car.vel.addScaledVector(n,-vn*1.35);
+ applyImpactDamage(car,speed/52,'collision');
+}
+function derivedActions(car,controls,dt,isPlayer=false){
+ const lv=localVelocity(car),surface=terrainType(car.pos);
+ if(surface!=='ASPHALT'&&Math.abs(lv.long)>7&&Math.random()<.32)spawnDust(car.pos,car.vel,.7);
+ if((car.slip>.16||(controls.handbrake||0))&&Math.abs(lv.long)>8&&Math.random()<.38)spawnSkid(car.pos,car.heading,.5,surface==='DIRT'?0x5b4632:0x171717);
+ if((controls.throttle||0)>.4&&Math.random()<.16)spawnExhaust(car);
+ if(isPlayer){
+  $('#slipHud').textContent=Math.round(car.slip*57.3)+'°';
+  $('#yawHud').textContent=((controls.steer||0)*Math.abs(lv.long)*.03).toFixed(2);
+  $('#airHud').textContent=car.airborne?('AIR '+car.airTime.toFixed(1)+'s'):(car.bottomOut?'BOTTOM':'GROUND');
+ }
+}
+function physicsPlayer(dt){
+ if(!player)return;
+ ensureMoveState(player);
+ const canDrive=raceStarted&&!finished,
+       throttle=canDrive&&!!(keys.KeyW||keys.ArrowUp),brake=canDrive&&!!(keys.KeyS||keys.ArrowDown),
+       left=canDrive&&!!(keys.KeyA||keys.ArrowLeft),right=canDrive&&!!(keys.KeyD||keys.ArrowRight),
+       hand=canDrive&&!!keys.Space,nitroKey=canDrive&&(!!keys.ShiftLeft||!!keys.ShiftRight),
+       steer=(left?1:0)-(right?1:0),nitro=nitroKey&&player.nitro>0;
+ if(nitro)player.nitro=Math.max(0,player.nitro-dt*22);else player.nitro=Math.min(100,player.nitro+dt*4.5);
+ const controls={throttle:throttle?1:0,brake:brake?1:0,steer,handbrake:hand?1:0,nitro};
+ const r=hybridMove(player,controls,dt),lv=r.lv,near=r.near;nearestIdx=near.idx;
+ player.g.position.copy(player.pos);player.g.rotation.y=player.heading;animateBuggy(player,lv.long,lv.lat,dt);
+
+ if(!BOX3D.active){
+  for(const ai of ais)resolveCarCollision(player,ai);
+  for(const o of destructibles)resolveWorldCollision(player,o,2.1,true);
+  for(const b of barriers)resolveWorldCollision(player,b,2.0,true);
+ }
+ if(player.bottomOut)applyImpactDamage(player,.09,'bottom');
+
+ const expected=trackHeading(nearestIdx),headingDelta=Math.abs(wrapAngle(player.heading-expected));
+ player.wrongWay=headingDelta>Math.PI*.62&&Math.abs(lv.long)>7;wrongWayTime=player.wrongWay?wrongWayTime+dt:Math.max(0,wrongWayTime-dt*2);
+ if(!player.wrongWay&&near.dist<9)player.lastSafe.copy(player.pos);
+ if(wrongWayTime>1)$('#raceBanner').textContent='WRONG WAY';
+
+ for(const p of pickups){
+  if(!p.userData.active)continue;p.rotation.y+=dt*2.2;
+  if(player.pos.distanceTo(p.position)<1.9){
+   p.userData.active=false;p.visible=false;
+   if(p.userData.type==='nitro')player.nitro=Math.min(100,player.nitro+45);
+   else{player.health=Math.min(100,player.health+32);player.suspensionDamage=Math.max(0,player.suspensionDamage-.18);player.engineDamage=Math.max(0,player.engineDamage-.12);player.steeringDamage=Math.max(0,player.steeringDamage-.12);player.brakeDamage=Math.max(0,player.brakeDamage-.12)}
+  }
+ }
+
+ for(const l of player.g.userData.rearLights||[]){l.material.emissiveIntensity=controls.brake?2.7:.25;l.material.emissive.setHex(controls.brake?0xff1200:0x330000)}
+ for(const l of player.g.userData.reverseLights||[]){const rev=lv.long<-1;l.material.emissiveIntensity=rev?2.2:.1;l.material.emissive.setHex(rev?0xffffff:0x222222)}
+ derivedActions(player,controls,dt,true);
+
+ $('#surface').textContent=r.surface;$('#speed').textContent=Math.round(Math.abs(lv.long)*3.6);$('#gear').textContent=lv.long<-1?'R':Math.abs(lv.long)<1?'N':String(clamp(Math.floor(Math.abs(lv.long)/10)+1,1,6));
+ $('#susp').textContent=Math.round((1-player.suspensionDamage)*100)+'%';$('#traction').textContent=player.slip>.28?'SLIDE':player.slip>.14?'LOOSE':'GRIP';
+ $('#nitroHud').textContent=Math.round(player.nitro)+'%';$('#healthHud').textContent=Math.round(player.health)+'%';
+}
+function respawnPlayer(){
+ if(!player)return;
+ const near=nearestTrack(player.lastSafe||player.pos);
+ player.pos.copy(trackSamples[near.idx]);player.pos.y=sampleTrackSurface(player.pos).y+.18;player.heading=trackHeading(near.idx);
+ player.vel.set(0,0,0);player.vy=0;player.airborne=false;player.wrongWay=false;wrongWayTime=0;cameraShake=.25;box3dResetCar(player);
+}
+function wrapAngle(a){while(a>Math.PI)a-=TAU;while(a<-Math.PI)a+=TAU;return a}
+function updateAI(dt){
+ const N=trackSamples.length, racers=[player,...ais];
+ for(const ai of ais){
+  ensureMoveState(ai);
+  let near=nearestTrack(ai.pos);ai.progress=projectedProgress(ai.pos);
+  const fwd=new THREE.Vector3(Math.sin(ai.heading),0,Math.cos(ai.heading)),rightV=new THREE.Vector3(fwd.z,0,-fwd.x);
+  const lv0=localVelocity(ai);let long=lv0.long;
+
+  let lead=null,leadDist=1e9,leadSide=0;
+  for(const other of racers){
+   if(!other||other===ai)continue;const rel=other.pos.clone().sub(ai.pos);rel.y=0;
+   const ahead=rel.dot(fwd),side=rel.dot(rightV);if(ahead>0&&ahead<leadDist&&Math.abs(side)<5.2){lead=other;leadDist=ahead;leadSide=side}
+  }
+
+  ai.decision-=dt;
+  if(ai.decision<=0){
+   ai.decision=.3+Math.random()*.42;
+   const line=clamp(racingLineOffset((near.idx+14)%N)+apexLineOffset((near.idx+18)%N),-4.4,4.4),
+         seg=near.idx/N,roughShortcut=(seg>.08&&seg<.18)||(seg>.42&&seg<.55)||(seg>.76&&seg<.86);
+   if(lead&&leadDist<16){ai.state='OVERTAKE';ai.targetLane=clamp(line+(leadSide>=0?-1:1)*(3+ai.aggression*1.6),-5.5,5.5)}
+   else if(roughShortcut&&ai.aggression>.72&&Math.random()<.28){ai.st
