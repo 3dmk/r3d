@@ -34,17 +34,15 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  ensureMoveState(car);
  dt=Math.min(dt,.033);
  car.yawRate??=0;car._steerAngle??=0;
- const wheels=car.g?.userData?.allWheels||[];
  const steerTarget=(controls.steer||0)*WHEEL_PHYS.steerMax;
  car._steerAngle+=(steerTarget-car._steerAngle)*Math.min(1,dt*WHEEL_PHYS.steerResponse);
  const c=Math.cos(car.heading),si=Math.sin(car.heading);
  let fx=0,fz=0,torqueY=0,groundSum=0,contactCount=0;
  const wheelStates=[];
- const speed=Math.hypot(car.vel.x,car.vel.z);
  for(let wi=0;wi<4;wi++){
-  const side=wi<2?-1:1, front=(wi%2)===1;
+  const side=wi<2?-1:1,front=(wi%2)===1;
   const lx=side*1.42,lz=front?1.58:-1.58;
-  const rx=lx*c+lz*si, rz=-lx*si+lz*c;
+  const rx=lx*c+lz*si,rz=-lx*si+lz*c;
   const wx=car.pos.x+rx,wz=car.pos.z+rz;
   const sample=sampleTrackSurface({x:wx,z:wz});
   groundSum+=sample.y;contactCount++;
@@ -54,13 +52,8 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
   const grip=terrainGrip(sample.type)*(1-car.suspensionDamage*.28);
   const normal=WHEEL_PHYS.mass*9.81*.25;
   let longForce=0;
-  if(front===false){
-    if((controls.throttle||0)>0)longForce+=(controls.throttle||0)*(vLong<-.5?WHEEL_PHYS.reverseForce:WHEEL_PHYS.driveForce)*.5;
-  }
-  if((controls.brake||0)>0){
-    const sign=Math.abs(vLong)>.25?Math.sign(vLong):1;
-    longForce-=sign*(controls.brake||0)*WHEEL_PHYS.brakeForce*.25;
-  }
+  if(!front&&(controls.throttle||0)>0)longForce+=(controls.throttle||0)*(vLong<-.5?WHEEL_PHYS.reverseForce:WHEEL_PHYS.driveForce)*.5;
+  if((controls.brake||0)>0){const sign=Math.abs(vLong)>.25?Math.sign(vLong):1;longForce-=sign*(controls.brake||0)*WHEEL_PHYS.brakeForce*.25}
   let latForce=-vLat*WHEEL_PHYS.cornerStiffness*(front?1.05:.95);
   if((controls.handbrake||0)&&!front)latForce*=.22;
   const maxF=Math.max(1200,normal*(1.15*grip));
@@ -95,11 +88,8 @@ replaceFunction('animateBuggy',`function animateBuggy(car,long,lat,dt){
   const w=wheels[i],st=states[i]||null;
   const steer=st?st.steer:(w.userData.front?(car._steerAngle||0):0);
   w.rotation.y=steer;
-  if(st){
-   w.userData.spin=(w.userData.spin||0)-st.spin*dt;
-   w.userData.compression=st.compression;
-   w.position.y=.62-(st.compression-.5)*.26;
-  }else w.userData.spin=(w.userData.spin||0)-long*dt/WHEEL_PHYS.wheelRadius;
+  if(st){w.userData.spin=(w.userData.spin||0)-st.spin*dt;w.userData.compression=st.compression;w.position.y=.62-(st.compression-.5)*.26}
+  else w.userData.spin=(w.userData.spin||0)-long*dt/WHEEL_PHYS.wheelRadius;
   if(w.userData.tire){w.userData.tire.rotation.z=Math.PI/2;w.userData.tire.rotation.y=w.userData.spin}
   if(w.userData.rim){w.userData.rim.rotation.z=Math.PI/2;w.userData.rim.rotation.y=w.userData.spin}
  }
@@ -117,11 +107,11 @@ replaceFunction('resolveWorldCollision',`function resolveWorldCollision(car,obj,
 }`);
 
 s=s.replace("window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true};",
-            "window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,state:()=>({aiCount:ais.length,hasPlayer:!!player,wheels:player?.g?.userData?.allWheels?.length||0,ai:ais.map(a=>[a.pos.x,a.pos.z]),player:player?{p:[player.pos.x,player.pos.z],h:player.heading,speed:Math.abs(player.speed||0),spin:(player.g?.userData?.allWheels||[]).map(w=>w.userData.spin||0),states:player._wheelPhysics?.length||0}:null})};");
+            "window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,state:()=>({aiCount:ais.length,hasPlayer:!!player,wheels:player?.g?.userData?.allWheels?.length||0,ai:ais.map(a=>[a.pos.x,a.pos.z]),player:player?{p:[player.pos.x,player.pos.z],h:player.heading,speed:Math.abs(player.speed||0),spin:(player.g?.userData?.allWheels||[]).map(w=>w.userData.spin||0),states:player._wheelPhysics?.length||0}:null}),testAI:(steps=120)=>{const before=ais.map(a=>[a.pos.x,a.pos.z]);for(let i=0;i<steps;i++)updateAI(1/60);const after=ais.map(a=>[a.pos.x,a.pos.z]);return after.map((p,i)=>Math.hypot(p[0]-before[i][0],p[1]-before[i][1]))}};");
 s=s.replace("window.__polygonRush={version:'15.5',boot:true,solver:'wheel-physics'};",
             "window.__polygonRush={version:'15.5',boot:true,solver:'wheel-physics',wheelPhysics:true};");
 
-for(const r of ['Polygon Rush v15.5 Wheel Physics Rebuild','const WHEEL_PHYS=','car._wheelPhysics=wheelStates','w.userData.rim.rotation.y=w.userData.spin','Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>'])must(s.includes(r),'v15.5 missing '+r);
+for(const r of ['Polygon Rush v15.5 Wheel Physics Rebuild','const WHEEL_PHYS=','car._wheelPhysics=wheelStates','w.userData.rim.rotation.y=w.userData.spin','Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:'])must(s.includes(r),'v15.5 missing '+r);
 for(const bad of ["solver:'arcade'","$('#box3dHud').textContent='ARCADE'"])must(!s.includes(bad),'v15.5 stale '+bad);
 fs.writeFileSync(file,s);
 console.log('Polygon Rush v15.5 wheel physics rebuild applied');
