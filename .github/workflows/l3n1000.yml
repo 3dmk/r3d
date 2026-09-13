@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'polygon-rush/l3n/l3n1000.mjs'
+      - 'polygon-rush/l3n/**'
       - '.github/workflows/l3n1000.yml'
       - 'polygon-rush/v14.6/source/**'
       - 'polygon-rush/box3d/**'
@@ -15,21 +15,101 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Run 1000 adaptive passes
         run: node polygon-rush/l3n/l3n1000.mjs
-      - name: Verify report
+
+      - name: Verify L3N score report
         run: |
           test -s polygon-rush/l3n/out/L3N1000_REPORT.json
           node - <<'NODE'
           const r=require('./polygon-rush/l3n/out/L3N1000_REPORT.json');
           if(r.iterations!==1000) throw new Error('L3N iteration count mismatch');
           if(!r.bestEvaluation || !Number.isFinite(r.bestEvaluation.value)) throw new Error('Missing best score');
+          if(r.acceptedIterations<1) throw new Error('No accepted L3N improvements');
           console.log('accepted improvements:',r.acceptedIterations);
           console.log('baseline score:',r.baselineEvaluation.value);
           console.log('best score:',r.bestEvaluation.value);
           console.log('best parameters:',r.bestParameters);
           NODE
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.69
+          actions-cache-folder: emsdk-cache
+
+      - name: Checkout Box3D v0.1.0
+        run: git clone --depth 1 --branch v0.1.0 https://github.com/erincatto/box3d.git .box3d-src
+
+      - name: Build Box3D library
+        run: |
+          emcc --version
+          emcmake cmake -S .box3d-src -B .box3d-src/build-web -DBOX3D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build .box3d-src/build-web --target box3d -j2
+          test -s .box3d-src/build-web/src/libbox3d.a
+
+      - name: Build L3N Box3D WASM runtime
+        run: |
+          mkdir -p polygon-rush/l3n/runtime
+          emcc polygon-rush/box3d/box3d_bridge.c \
+            -I"$GITHUB_WORKSPACE/.box3d-src/include" \
+            "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
+            -O3 -msimd128 -msse2 \
+            -s WASM=1 \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME=createBox3DModule \
+            -s ENVIRONMENT='web,node' \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s ASSERTIONS=1 \
+            -s EXPORTED_FUNCTIONS='["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"]' \
+            -s EXPORTED_RUNTIME_METHODS='["HEAP32","HEAPF32"]' \
+            -o polygon-rush/l3n/runtime/box3d_bridge.js
+          test -s polygon-rush/l3n/runtime/box3d_bridge.js
+          test -s polygon-rush/l3n/runtime/box3d_bridge.wasm
+          node --check polygon-rush/l3n/runtime/box3d_bridge.js
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('polygon-rush/l3n/runtime/box3d_bridge.wasm').read_bytes()
+          assert b[:8] == b'\x00asm\x01\x00\x00\x00'
+          print('Box3D WASM bytes:',len(b))
+          PY
+
+      - name: Run mandatory Box3D physics-library gate
+        run: |
+          node polygon-rush/l3n/physics_gate.mjs \
+            polygon-rush/l3n/runtime/box3d_bridge.js \
+            polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json
+          test -s polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json
+          node - <<'NODE'
+          const r=require('./polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json');
+          if(r.passed!==true) throw new Error('Physics gate did not pass');
+          if(r.racerBodies!==5 || r.uniqueRacerHandles!==5) throw new Error('Five-racer physics integrity failed');
+          if(!(r.hitEvents>0)) throw new Error('No physics hit events');
+          if(!(r.leadDistance>4)) throw new Error('Vehicle control did not move racer');
+          if(!(r.settledRacers>=4)) throw new Error('Road-contact stability failed');
+          console.log('PHYSICS LIBRARY GATE PASSED');
+          NODE
+
+      - name: Verify source/runtime contract
+        run: |
+          grep -q 'b3World_Step' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'b3World_GetContactEvents' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'enableContinuous=true' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'enableContactEvents=true' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'enableHitEvents=true' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'linearDamping=0.14f' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'angularDamping=2.85f' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'engine=10500.0f' polygon-rush/box3d/box3d_bridge.c
+          grep -q 'yawTorque=steer.*4300.0f' polygon-rush/box3d/box3d_bridge.c
+
+      - name: Remove build-only Box3D source
+        run: rm -rf .box3d-src
+
       - uses: actions/upload-artifact@v4
         with:
-          name: polygon-rush-l3n1000-report
-          path: polygon-rush/l3n/out/L3N1000_REPORT.json
+          name: polygon-rush-l3n1000-reports
+          path: |
+            polygon-rush/l3n/out/L3N1000_REPORT.json
+            polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json
+          if-no-files-found: error
