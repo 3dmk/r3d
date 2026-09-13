@@ -1,0 +1,60 @@
+t-size:18px}#message{font-size:34px}#minimap{width:135px;height:110px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+ <div class="hud"><div class="hudL">Position</div><div class="hudV"><span id="pos">1</span>/<span id="field">5</span></div></div>
+ <div class="hud"><div class="hudL" id="goalLabel">Lap</div><div class="hudV" id="goalValue">1/3</div></div>
+ <div class="hud"><div class="hudL">Speed</div><div class="hudV"><span id="speed">0</span><span id="speedUnitLabel" style="font-size:11px"> km/h</span></div></div>
+ <div class="hud"><div class="hudL">Time</div><div class="hudV" id="timer">00:00.0</div></div>
+ <div class="hud"><div class="hudL">Sector / Penalty</div><div class="hudV" style="font-size:16px"><span id="sectorHud">S1</span> • <span id="penaltyHud">0.0</span>s</div></div>
+ <div class="hud"><div class="hudL">Lap / Best</div><div class="hudV" style="font-size:15px"><span id="lapTimeHud">00:00.0</span> • <span id="bestLapHud">--:--.-</span></div></div>
+</div>
+<div id="damageWrap"><div class="tiny">CAR CONDITION</div><div class="bar"><div id="damageFill" class="fill"></div></div><div id="powerText">Power-up: none</div></div>
+<canvas id="minimap" width="360" height="300"></canvas>
+<div id="message"></div>
+<div id="splitLabel"></div>
+
+<div id="menu" class="panel productionMenu">
+ <div class="menuHead"><div><div class="title">POLYGON RUSH</div><div class="sub">v12.1 • Release Candidate • PC / Android • 5-player LAN</div></div><div class="profilePill"><span id="profileNameTop">Player</span><b id="creditsTop">0 CR</b></div></div>
+ <div class="tabs menuTabs">
+  <button class="tab active" data-page="homePage">Home</button><button class="tab" data-page="racePage">Race</button><button class="tab" data-page="lanPage">Multiplayer</button><button class="tab" data-page="champPage">Championship</button><button class="tab" data-page="garagePage">Garage</button><button class="tab" data-page="carsPage">Cars</button><button class="tab" data-page="tracksPage">Tracks</button><button class="tab" data-page="settingsPage">Settings</button><button class="tab" data-page="profilePage">Profile</button><button class="tab" data-page="creditsPage">Credits</button>
+ </div>
+ <div id="homePage" class="page active">
+  <div class="heroMenu"><div class="heroTag">ARCADE RACING</div><h2>Fast cars. Five worlds. Five-player LAN.</h2><p>Race solo, split-screen or across Android and PC. Any player can host.</p></div>
+  <div class="homeActions">
+   <button class="menuAction primary" data-goto="racePage"><b>QUICK RACE</b><span>Configure a race and drive</span></button>
+   <button class="menuAction" data-goto="lanPage"><b>MULTIPLAYER</b><span>Make Host / Search Hosts</span></button>
+   <button class="menuAction" data-goto="champPage"><b>CHAMPIONSHIP</b><span id="homeChampText">Event 1 / 12</span></button>
+   <button class="menuAction" data-goto="garagePage"><b>GARAGE</b><span>Customize and tune your car</span></button>
+  </div>
+  <div class="section statusGrid"><div><span>Selected car</span><b id="homeCar">Comet</b></div><div><span>Track</span><b id="homeTrack">Azure Coast</b></div><div><span>Unlocked</span><b id="homeUnlocks">3 / 12</b></div><div><span>Stars</span><b id="homeStars">0</b></div></div>
+ </div>
+ <div id="racePage" class="page">
+  <div class="pageTitle">Race Setup</div><div class="tiny">Every control below is live and feeds directly into race creation.</div>
+  <div class="grid section">
+   <label>Competition<select id="mode"><option value="circuit">Circuit Race</option><option value="elimination">Elimination</option><option value="checkpoint">Checkpoint Rush</option><option value="time">Time Trial</option><option value="battle">Power Battle</option><option value="drift">Drift Attack</option><option value="survival">Survival</option></select></label>
+   <label>Zone<select id="track"><option value="coast">Azure Coast</option><option value="forest">Pine Summit</option><option value="canyon">Canyon Foundry</option><option value="neon">Neon Harbor</option><option value="alpine">Alpine Skyway</option></select></label>
+   <label>Laps / quota<input id="quota" type="number" min="1" max="20000" value="3"></label>
+   <label>AI difficulty<select id="difficulty"><option value=".9">Easy</option><option value="1" selected>Arcade</option><option value="1.08">Hard</option><option value="1.15">Expert</option></select></label>
+   <label>Human racers<select id="humans"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+   <label>Total racers<select id="racers"><option>2</option><option>3</option><option>4</option><option selected>5</option></select></label>
+   <label>View<select id="cameraMode"><option value="split" selected>Split-screen humans</option><option value="chase">Single chase</option><option value="broadcast">Broadcast</option></select></label>
+   <label>Power-ups<select id="weapons"><option value="on" selected>Arcade weapons</option><option value="off">Pure racing</option></select></label>
+   <label>Driving assists<select id="assists"><option value="arcade" selected>Arcade assists</option><option value="reduced">Reduced assists</option><option value="off">Assists off</option></select></label>
+   <label>Weather<select id="weatherMode"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="snow">Snow</option></select></label>
+   <label>Time of day<select id="timeMode"><option value="day">Day</option><option value="sunset">Sunset</option><option value="night">Night</option></select></label>
+   <label>Grid position<select id="gridPos"><option value="front">Front</option><option value="middle" selected>Middle</option><option value="back">Back</option></select></label>
+  </div>
+  <div class="section"><div class="tiny" style="margin-bottom:8px">Choose Player 1 car</div><div id="carList" class="cards"></div></div>
+  <div class="section row"><button id="start" class="primary bigBtn" style="flex:1">START RACE</button><span class="badge" id="raceNetBadge">5 local/split racers</span><span class="badge">AI bots</span></div>
+ </div>
+ <div id="lanPage" class="page">
+  <div class="pageTitle">5-Player LAN</div><div class="tiny"><b>Any player can host:</b> press Make Host. The other four press Search Hosts, select the lobby, join, and when 5/5 are connected the host can press Play.</div>
+  <div class="grid section"><label>Player name<input id="lanName" value="Player" maxlength="18"></label><label>Lobby name<input id="lanRoom" value="RUSH" maxlength="12"></label><label style="display:none">Role<select id="lanRole"><option value="offline">Offline</option><option value="androidhost">Android Host</option><option value="host">PC Host</option><option value="join">Join</option></select></label><label style="display:none">Server<input id="lanServer" value="auto"></label></div>
+  <div class="row section"><button id="lanMakeHost" class="primary" style="flex:1">MAKE HOST</button><button id="lanSearch" style="flex:1">SEARCH HOSTS</button><button id="lanDisconnect" style="flex:1">LEAVE</button><button id="hotspotBtn" style="display:none;flex:1">HOTSPOT</button></div>
+  <div id="lanHostList" class="stack section"></div><div id="lanStatus" class="tiny section">LAN: offline</div><div id="lanNet" class="tiny">Ping: — • Sync: idle</div><div id="lanPlayers" class="tiny">Players: —</div><div class="section"><button id="lanPlay" class="primary bigBtn" style="width:100%" disabled>PLAY — WAITING FOR 5 PLAYERS</button></div>
+  <div class="tiny section">Android can host while acting as hotspot and racer. PC can host using the bundled LAN server. Host discovery is automatic with manual fallback internally.</div>
+ </div>
+ <div id="champPage" class="page"><div class="pageTitle">Championship</div><div class="tiny">12 events across five zones. Finish in the top three to advance, earn credits and unlock cars.</div><div id="champList" class="
