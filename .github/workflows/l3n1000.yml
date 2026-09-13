@@ -1,0 +1,35 @@
+name: Polygon Rush L3N 1000
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'polygon-rush/l3n/l3n1000.mjs'
+      - '.github/workflows/l3n1000.yml'
+      - 'polygon-rush/v14.6/source/**'
+      - 'polygon-rush/box3d/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  l3n1000:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run 1000 adaptive passes
+        run: node polygon-rush/l3n/l3n1000.mjs
+      - name: Verify report
+        run: |
+          test -s polygon-rush/l3n/out/L3N1000_REPORT.json
+          node - <<'NODE'
+          const r=require('./polygon-rush/l3n/out/L3N1000_REPORT.json');
+          if(r.iterations!==1000) throw new Error('L3N iteration count mismatch');
+          if(!r.bestEvaluation || !Number.isFinite(r.bestEvaluation.value)) throw new Error('Missing best score');
+          console.log('accepted improvements:',r.acceptedIterations);
+          console.log('baseline score:',r.baselineEvaluation.value);
+          console.log('best score:',r.bestEvaluation.value);
+          console.log('best parameters:',r.bestParameters);
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polygon-rush-l3n1000-report
+          path: polygon-rush/l3n/out/L3N1000_REPORT.json
