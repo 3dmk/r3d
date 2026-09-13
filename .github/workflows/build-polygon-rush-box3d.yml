@@ -1,0 +1,59 @@
+name: Build Polygon Rush Box3D WASM
+
+on:
+  push:
+    branches: [polygon-rush-box3d-v14-5]
+    paths:
+      - 'polygon-rush/box3d/**'
+      - '.github/workflows/build-polygon-rush-box3d.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.69
+          actions-cache-folder: emsdk-cache
+
+      - name: Checkout Box3D v0.1.0
+        run: git clone --depth 1 --branch v0.1.0 https://github.com/erincatto/box3d.git box3d
+
+      - name: Build Box3D for WebAssembly
+        run: |
+          emcmake cmake -S box3d -B box3d/build-web -DBOX3D_SAMPLES=OFF -DBOX3D_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build box3d/build-web -j2
+          find box3d/build-web -name 'libbox3d.a' -print
+
+      - name: Build Polygon Rush bridge
+        run: |
+          LIB=$(find box3d/build-web -name 'libbox3d.a' -print -quit)
+          test -n "$LIB"
+          cd polygon-rush/box3d
+          emcc box3d_bridge.c \
+            -I../../box3d/include \
+            "$GITHUB_WORKSPACE/$LIB" \
+            -O3 \
+            -s WASM=1 \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME=createBox3DModule \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s ASSERTIONS=1 \
+            -s EXPORTED_FUNCTIONS='["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"]' \
+            -s EXPORTED_RUNTIME_METHODS='["HEAP32","HEAPF32"]' \
+            -o box3d_bridge.js
+          test -s box3d_bridge.js
+          test -s box3d_bridge.wasm
+
+      - name: Upload Box3D runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: polygon-rush-box3d-runtime
+          path: |
+            polygon-rush/box3d/box3d_bridge.js
+            polygon-rush/box3d/box3d_bridge.wasm
+          if-no-files-found: error
