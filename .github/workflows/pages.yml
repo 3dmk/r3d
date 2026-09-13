@@ -26,29 +26,10 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          # Repair the known split-source corruption at the part01/part02 boundary.
           s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
-
           old="function start(){buildWorld($('#track').value);spawn();running=true;paused=false;raceTime=0;$('#menu').style.display='none';$('#hud').style.display='flex';$('#msg').textContent='GO!';setTimeout(()=>$('#msg').textContent='',700)}"
-          new="""function start(){
- const menu=$('#menu'),hud=$('#hud'),msg=$('#msg'),btn=$('#start');
- if(btn){btn.disabled=true;btn.textContent='STARTING...'}
- if(menu)menu.style.display='none';if(hud)hud.style.display='flex';if(msg)msg.textContent='LOADING RACE...';
- try{
-  const track=$('#track')?.value||'coast';
-  buildWorld(track);spawn();
-  running=true;paused=false;raceTime=0;raceStarted=true;finished=false;countdown=0;
-  if(BOX3D.active){box3dDestroyAll();box3dClearStatics();box3dBuildTrackWorld();box3dCreateVehicle(player);for(const ai of ais)box3dCreateVehicle(ai)}
-  if(msg)msg.textContent='GO!';setTimeout(()=>{if(msg)msg.textContent=''},700);
- }catch(e){
-  console.error('START RACE FAILED',e);running=false;paused=false;
-  if(menu)menu.style.display='block';if(hud)hud.style.display='none';
-  if(msg){msg.textContent='START ERROR — PRESS F3';msg.style.display='block'}
-  const dbg=$('#debug');if(dbg){dbg.classList.add('open');dbg.textContent='START RACE ERROR\\n'+(e?.stack||e)}
- }finally{if(btn){btn.disabled=false;btn.textContent='START RACE'}}
-}"""
-          if old not in s:
-              raise SystemExit('expected start() function not found')
+          new="function start(){\n const menu=$('#menu'),hud=$('#hud'),msg=$('#msg'),btn=$('#start');\n if(btn){btn.disabled=true;btn.textContent='STARTING...'}\n if(menu)menu.style.display='none';if(hud)hud.style.display='flex';if(msg)msg.textContent='LOADING RACE...';\n try{const track=$('#track')?.value||'coast';buildWorld(track);spawn();running=true;paused=false;raceTime=0;raceStarted=true;finished=false;countdown=0;if(BOX3D.active){box3dDestroyAll();box3dClearStatics();box3dBuildTrackWorld();box3dCreateVehicle(player);for(const ai of ais)box3dCreateVehicle(ai)}if(msg)msg.textContent='GO!';setTimeout(()=>{if(msg)msg.textContent=''},700)}catch(e){console.error('START RACE FAILED',e);running=false;paused=false;if(menu)menu.style.display='block';if(hud)hud.style.display='none';if(msg){msg.textContent='START ERROR — PRESS F3';msg.style.display='block'}const dbg=$('#debug');if(dbg){dbg.classList.add('open');dbg.textContent='START RACE ERROR\\n'+(e?.stack||e)}}finally{if(btn){btn.disabled=false;btn.textContent='START RACE'}}\n}"
+          if old not in s: raise SystemExit('expected start() function not found')
           s=s.replace(old,new,1)
           s=s.replace("$('#start').onclick=start;","const startButton=$('#start');if(startButton)startButton.addEventListener('click',e=>{e.preventDefault();start()});",1)
           s=s.replace('Polygon Rush v14.6 GitHub Box3D','Polygon Rush v14.6.1 Start Hotfix')
