@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.2 Clean Arcade Runtime
+      - name: Rebuild Polygon Rush v15.3 Clean Arcade Runtime
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -33,6 +33,10 @@ jobs:
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
+          mkdir -p play/v15.3
+          cp index.html play/v15.3/index.html
+          cp three.min.js play/v15.3/three.min.js
+          printf 'Polygon Rush v15.3 Clean Arcade Runtime\n' > play/v15.3/VERSION.txt
 
       - name: Validate clean generated game
         run: |
@@ -43,7 +47,7 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.2 Clean Arcade Runtime',
+            'Polygon Rush v15.3 Clean Arcade Runtime',
             'playerIdx=248',
             'gridIdx=[250,252,254,256]',
             'countdown=3.2',
@@ -63,6 +67,10 @@ jobs:
           assert s.count('function hybridMove(car,controls,dt){')==1
           assert s.count('function start(){')==1
           assert s.count("if(e.code==='KeyR')recover();")==1
+          v=pathlib.Path('play/v15.3/index.html').read_text()
+          assert 'Polygon Rush v15.3 Clean Arcade Runtime' in v
+          assert '<script src="box3d_bridge.js"></script>' not in v
+          assert pathlib.Path('play/v15.3/VERSION.txt').read_text().strip()=='Polygon Rush v15.3 Clean Arcade Runtime'
           PY
           node --check /tmp/polygon-rush-inline.js
 
