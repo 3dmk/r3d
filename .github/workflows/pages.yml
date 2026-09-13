@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.3 Clean Arcade Runtime
+      - name: Rebuild Polygon Rush v15.4 Core Drive Rebuild
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -29,16 +29,16 @@ jobs:
           s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
           p.write_text(s)
           PY
-          node polygon-rush/engineering/v15_2_single_runtime_rebuild.mjs index.html
+          node polygon-rush/engineering/v15_4_core_drive_rebuild.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.3
-          cp index.html play/v15.3/index.html
-          cp three.min.js play/v15.3/three.min.js
-          printf 'Polygon Rush v15.3 Clean Arcade Runtime\n' > play/v15.3/VERSION.txt
+          mkdir -p play/v15.4
+          cp index.html play/v15.4/index.html
+          cp three.min.js play/v15.4/three.min.js
+          printf 'Polygon Rush v15.4 Core Drive Rebuild\n' > play/v15.4/VERSION.txt
 
-      - name: Validate clean generated game
+      - name: Validate generated game structure
         run: |
           node --check three.min.js
           python3 - <<'PY'
@@ -47,12 +47,13 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.3 Clean Arcade Runtime',
+            'Polygon Rush v15.4 Core Drive Rebuild',
             'playerIdx=248',
-            'gridIdx=[250,252,254,256]',
+            'gridIdx=[250,251,253,254]',
             'countdown=3.2',
-            'return applyArcadeMovement(car,controls,dt);',
-            'if(raceStarted&&!finished)updateAI(dt)',
+            'function runArcadeSolverSelfTest',
+            'window.__polygonRush.selfTestDistance',
+            'START invariant failed: expected 1 player + 4 opponents',
             'Physics backend: ARCADE',
             'three.min.js'
           ]
@@ -60,19 +61,70 @@ jobs:
           forbidden=[
             '<script src="box3d_bridge.js"></script>',
             'if(BOX3D.active){box3dStep(dt);box3dSyncAllCars()}',
-            'box3dApplyControl(car,controls);',
             'initBox3D();requestAnimationFrame(loop);'
           ]
           for r in forbidden: assert r not in s, r
           assert s.count('function hybridMove(car,controls,dt){')==1
+          assert s.count('function physicsPlayer(dt){')==1
+          assert s.count('function updateAI(dt){')==1
           assert s.count('function start(){')==1
           assert s.count("if(e.code==='KeyR')recover();")==1
-          v=pathlib.Path('play/v15.3/index.html').read_text()
-          assert 'Polygon Rush v15.3 Clean Arcade Runtime' in v
+          v=pathlib.Path('play/v15.4/index.html').read_text()
+          assert 'Polygon Rush v15.4 Core Drive Rebuild' in v
           assert '<script src="box3d_bridge.js"></script>' not in v
-          assert pathlib.Path('play/v15.3/VERSION.txt').read_text().strip()=='Polygon Rush v15.3 Clean Arcade Runtime'
+          assert pathlib.Path('play/v15.4/VERSION.txt').read_text().strip()=='Polygon Rush v15.4 Core Drive Rebuild'
           PY
           node --check /tmp/polygon-rush-inline.js
+
+      - name: Install browser test runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run real browser gameplay gate
+        run: |
+          python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          cat > /tmp/polygon-rush-browser-test.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1280,height:720}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('console',m=>{ if(m.type()==='error') errors.push('console: '+m.text()); });
+            await page.goto('http://127.0.0.1:4173/play/v15.4/',{waitUntil:'networkidle'});
+            await page.waitForFunction(()=>window.__polygonRush?.boot===true,{timeout:15000});
+            const boot=await page.evaluate(()=>window.__polygonRush);
+            if(boot.version!=='15.4') throw new Error('Wrong deployed version: '+JSON.stringify(boot));
+            if(!(boot.selfTestDistance>2)) throw new Error('Arcade startup self-test did not move: '+JSON.stringify(boot));
+            await page.click('#start');
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true,{timeout:5000});
+            const start=await page.evaluate(()=>({diag:window.__polygonRush,aiCount:ais.length,hasPlayer:!!player,player:[player.pos.x,player.pos.z],ai:ais.map(a=>[a.pos.x,a.pos.z])}));
+            if(!start.hasPlayer||start.aiCount!==4||start.diag.racers!==5) throw new Error('Five-car start invariant failed: '+JSON.stringify(start));
+            await page.waitForFunction(()=>window.__polygonRush?.go===true,{timeout:6000});
+            const ai0=await page.evaluate(()=>ais.map(a=>[a.pos.x,a.pos.z]));
+            await page.waitForTimeout(1800);
+            const ai1=await page.evaluate(()=>ais.map(a=>[a.pos.x,a.pos.z]));
+            const aiMoved=ai1.some((p,i)=>Math.hypot(p[0]-ai0[i][0],p[1]-ai0[i][1])>0.5);
+            if(!aiMoved) throw new Error('AI movement gate failed: opponents did not move after GO');
+            const p0=await page.evaluate(()=>[player.pos.x,player.pos.z]);
+            await page.keyboard.down('KeyW');
+            await page.waitForTimeout(1600);
+            await page.keyboard.up('KeyW');
+            const p1=await page.evaluate(()=>[player.pos.x,player.pos.z,Math.abs(player.speed||0)]);
+            const playerDist=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]);
+            if(!(playerDist>0.5&&p1[2]>0.2)) throw new Error('Player W movement gate failed: '+JSON.stringify({p0,p1,playerDist}));
+            const hud=await page.textContent('#speed');
+            if(!(Number(hud)>0)) throw new Error('HUD speed did not update: '+hud);
+            if(errors.length) throw new Error('Browser runtime errors: '+errors.join(' | '));
+            console.log('PLAYABLE GATE PASS',JSON.stringify({version:boot.version,selfTestDistance:boot.selfTestDistance,aiMoved,playerDist,speed:p1[2],hudSpeed:Number(hud)}));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/polygon-rush-browser-test.cjs
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
