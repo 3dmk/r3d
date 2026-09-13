@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.1 Clean Runtime
+      - name: Rebuild Polygon Rush v15.2 Clean Arcade Runtime
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -27,77 +27,15 @@ jobs:
           p=Path('index.html')
           s=p.read_text()
           s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
-          old="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y,car.pos.z,car.heading);"
-          new="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y+.90,car.pos.z,car.heading);"
-          if old not in s: raise SystemExit('Box3D create vehicle signature not found')
-          s=s.replace(old,new,1)
-          old="car.pos.set(f[base],f[base+1],f[base+2]);"
-          new="car.pos.set(f[base],f[base+1]-.90,f[base+2]);"
-          if old not in s: raise SystemExit('Box3D sync position not found')
-          s=s.replace(old,new,1)
-          old="function start(){buildWorld($('#track').value);spawn();running=true;paused=false;raceTime=0;$('#menu').style.display='none';$('#hud').style.display='flex';$('#msg').textContent='GO!';setTimeout(()=>$('#msg').textContent='',700)}"
-          new="function start(){\n const menu=$('#menu'),hud=$('#hud'),msg=$('#msg'),btn=$('#start');\n if(btn){btn.disabled=true;btn.textContent='STARTING...'}\n if(menu)menu.style.display='none';if(hud)hud.style.display='flex';if(msg)msg.textContent='LOADING RACE...';\n try{const track=$('#track')?.value||'coast';buildWorld(track);spawn();if(!player||ais.length!==4)throw new Error('Racer spawn failed: '+(player?1:0)+' player + '+ais.length+' opponents');running=true;paused=false;raceTime=0;raceStarted=true;finished=false;countdown=0;if(BOX3D.active){box3dDestroyAll();box3dClearStatics();box3dBuildTrackWorld();box3dCreateVehicle(player);for(const ai of ais)box3dCreateVehicle(ai);if(BOX3D.bodies.size!==5)throw new Error('Box3D racer body creation failed: '+BOX3D.bodies.size+'/5')}if(msg)msg.textContent='GO!';setTimeout(()=>{if(msg)msg.textContent=''},700)}catch(e){console.error('START RACE FAILED',e);running=false;paused=false;if(menu)menu.style.display='block';if(hud)hud.style.display='none';if(msg){msg.textContent='START ERROR — PRESS F3';msg.style.display='block'}const dbg=$('#debug');if(dbg){dbg.classList.add('open');dbg.textContent='START RACE ERROR\\n'+(e?.stack||e)}}finally{if(btn){btn.disabled=false;btn.textContent='START RACE'}}\n}"
-          if old not in s: raise SystemExit('expected start() function not found')
-          s=s.replace(old,new,1)
-          s=s.replace("$('#start').onclick=start;","const startButton=$('#start');if(startButton)startButton.addEventListener('click',e=>{e.preventDefault();start()});",1)
           p.write_text(s)
           PY
-          node polygon-rush/engineering/pass1_patch.mjs index.html
-          node polygon-rush/engineering/pass2_patch.mjs index.html
-          node polygon-rush/engineering/pass3_patch.mjs index.html
-          node polygon-rush/engineering/v15_0_1_runtime_hotfix.mjs index.html
-          node polygon-rush/engineering/v15_0_2_drive_countdown_fix.mjs index.html
-          node polygon-rush/engineering/v15_1_clean_runtime.mjs index.html
+          node polygon-rush/engineering/v15_2_single_runtime_rebuild.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
-          grep -q "Polygon Rush v15.1 Clean Runtime" index.html
-          grep -q "playerIdx=250" index.html
-          grep -q "gridIdx=\[252,254,256,258\]" index.html
-          grep -q "countdown=3.15" index.html
-          grep -q "ARCADE AUTHORITATIVE" index.html
-          grep -q "return applyArcadeMovement(car,shaped,dt)" index.html
-          ! grep -q "box3dApplyControl(car,shaped);" index.html
-          ! grep -q "if(BOX3D.active){box3dStep(dt);box3dSyncAllCars()}" index.html
-          ! grep -q "if(e.code==='KeyR')recover();" index.html
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.69
-          actions-cache-folder: emsdk-cache
-
-      - name: Checkout Box3D v0.1.0
-        run: git clone --depth 1 --branch v0.1.0 https://github.com/erincatto/box3d.git .box3d-src
-
-      - name: Build Box3D library
-        run: |
-          emcmake cmake -S .box3d-src -B .box3d-src/build-web -DBOX3D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
-          cmake --build .box3d-src/build-web --target box3d -j2
-          test -s .box3d-src/build-web/src/libbox3d.a
-
-      - name: Build Box3D runtime availability
-        run: |
-          grep -q "static float g_state_buf\[7\]" polygon-rush/box3d/box3d_bridge.c
-          grep -q "static float g_contact_buf" polygon-rush/box3d/box3d_bridge.c
-          emcc polygon-rush/box3d/box3d_bridge.c \
-            -I"$GITHUB_WORKSPACE/.box3d-src/include" \
-            "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
-            -O3 -msimd128 -msse2 \
-            -s WASM=1 \
-            -s MODULARIZE=1 \
-            -s EXPORT_NAME=createBox3DModule \
-            -s ALLOW_MEMORY_GROWTH=1 \
-            -s ASSERTIONS=1 \
-            -s EXPORTED_FUNCTIONS='["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"]' \
-            -s EXPORTED_RUNTIME_METHODS='["HEAP32","HEAPF32"]' \
-            -o box3d_bridge.js
-          test -s box3d_bridge.js
-          test -s box3d_bridge.wasm
-
       - name: Validate clean generated game
         run: |
-          node --check box3d_bridge.js
           node --check three.min.js
           python3 - <<'PY'
           import re, pathlib
@@ -105,30 +43,28 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.1 Clean Runtime','playerIdx=250','gridIdx=[252,254,256,258]',
-            'countdown=3.15','function shapeDriveControls','return applyArcadeMovement(car,shaped,dt);',
-            'Physics backend: ARCADE AUTHORITATIVE','if(raceStarted&&!finished)updateAI(dt)',
-            'ais.length!==4','const TRACK_CELL=24','function rebuildTrackSpatial','three.min.js'
+            'Polygon Rush v15.2 Clean Arcade Runtime',
+            'playerIdx=248',
+            'gridIdx=[250,252,254,256]',
+            'countdown=3.2',
+            'return applyArcadeMovement(car,controls,dt);',
+            'if(raceStarted&&!finished)updateAI(dt)',
+            'Physics backend: ARCADE',
+            'three.min.js'
           ]
           for r in required: assert r in s, r
           forbidden=[
-            'box3dApplyControl(car,shaped);',
+            '<script src="box3d_bridge.js"></script>',
             'if(BOX3D.active){box3dStep(dt);box3dSyncAllCars()}',
-            "if(e.code==='KeyR')recover();"
+            'box3dApplyControl(car,controls);',
+            'initBox3D();requestAnimationFrame(loop);'
           ]
           for r in forbidden: assert r not in s, r
-          assert s.count("if(e.code==='KeyR'&&player)respawnPlayer();")==1
+          assert s.count('function hybridMove(car,controls,dt){')==1
+          assert s.count('function start(){')==1
+          assert s.count("if(e.code==='KeyR')recover();")==1
           PY
           node --check /tmp/polygon-rush-inline.js
-          python3 - <<'PY'
-          from pathlib import Path
-          b=Path('box3d_bridge.wasm').read_bytes()
-          assert b[:8] == b'\x00asm\x01\x00\x00\x00'
-          print('Box3D WASM available bytes:',len(b))
-          PY
-
-      - name: Remove build-only source
-        run: rm -rf .box3d-src
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
