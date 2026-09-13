@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v14.9 Engineering Pass 2
+      - name: Rebuild Polygon Rush v14.10 Engineering Pass 3
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -44,12 +44,16 @@ jobs:
           PY
           node polygon-rush/engineering/pass1_patch.mjs index.html
           node polygon-rush/engineering/pass2_patch.mjs index.html
-          grep -q "Polygon Rush v14.9" index.html
+          node polygon-rush/engineering/pass3_patch.mjs index.html
+          grep -q "Polygon Rush v14.10" index.html
           grep -q "car.pos.y+.90" index.html
           grep -q "ais.length!==4" index.html
           grep -q "function shapeDriveControls" index.html
           grep -q "bodyOwners:new Map()" index.html
           grep -q "o.castShadow=false" index.html
+          grep -q "const TRACK_CELL=24" index.html
+          grep -q "function rebuildTrackSpatial" index.html
+          grep -q "trackLookupStats.fallbacks" index.html
           test "$(wc -c < index.html)" -gt 50000
 
       - name: Setup Emscripten
@@ -102,6 +106,10 @@ jobs:
           assert "bodyOwners:new Map()" in s
           assert "o.castShadow=false;world.add(o)" in s
           assert "new THREE.BoxGeometry(1.8,.8,.32),bmat)" in s
+          assert "const TRACK_CELL=24" in s
+          assert "function rebuildTrackSpatial" in s
+          assert "rebuildTrackSpatial();curve=" in s
+          assert "trackLookupStats.fallbacks++" in s
           PY
           node --check /tmp/polygon-rush-inline.js
           python3 - <<'PY'
