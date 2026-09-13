@@ -1,0 +1,4 @@
+,0);initBox3D();requestAnimationFrame(loop);
+ if(cameraShake>0){cam.position.x+=(Math.random()-.5)*cameraShake*.7;cam.position.y+=(Math.random()-.5)*cameraShake*.45;cam.position.z+=(Math.random()-.5)*cameraShake*.7}
+})();
+</script></body></html>
