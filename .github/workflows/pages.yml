@@ -46,6 +46,7 @@ jobs:
           node polygon-rush/engineering/pass2_patch.mjs index.html
           node polygon-rush/engineering/pass3_patch.mjs index.html
           node polygon-rush/engineering/pass4_all_audits_patch.mjs index.html
+          node polygon-rush/engineering/pass5_all_remaining_patch.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           grep -q "Polygon Rush v15.0" index.html
           grep -q "car.pos.y+.90" index.html
@@ -55,6 +56,10 @@ jobs:
           grep -q "const TRACK_CELL=24" index.html
           grep -q "const FX={dustPool" index.html
           grep -q "Frame avg/p95/max ms" index.html
+          grep -q "new THREE.InstancedMesh" index.html
+          grep -q "installTouchControls" index.html
+          grep -q "function updateQuality" index.html
+          grep -q "function applyNetworkPresentation" index.html
           grep -q "three.min.js" index.html
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
@@ -107,6 +112,7 @@ jobs:
             "function shapeDriveControls","box3dApplyControl(car,shaped)","applyArcadeMovement(car,shaped,dt)",
             "bodyOwners:new Map()","const TRACK_CELL=24","function rebuildTrackSpatial","trackLookupStats.fallbacks++",
             "const FX={dustPool:[]","function handlingProfile()","Frame avg/p95/max ms","Optional LAN client",
+            "new THREE.InstancedMesh","installTouchControls","function updateQuality()","function applyNetworkPresentation()",
             "three.min.js","Polygon Rush v15.0 Consolidated Engineering"
           ]
           for r in required: assert r in s, r
