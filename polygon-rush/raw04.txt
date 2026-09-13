@@ -1,0 +1,49 @@
+ worlds.<br><br><span class="tiny">This menu reports implemented runtime systems. Future production art/model/audio content can replace the current procedural assets without changing the menu structure.</span></div></div>
+</div>
+<div id="pauseMenu" class="panel pausePanel"><div class="title" style="font-size:26px">PAUSED</div><div class="stack section"><button id="resumeRace" class="primary">RESUME</button><button id="restartRace">RESTART RACE</button><button id="pauseSettings">SETTINGS</button><button id="quitRace" class="danger">QUIT TO MENU</button></div></div>
+<div id="fpsCounter" class="fpsCounter">60 FPS</div>
+<div id="results" class="panel"><div class="title" style="font-size:24px">Race Results</div><div id="resultRows" class="section"></div><div id="rewardText" class="tiny" style="margin:10px 0"></div><div class="row"><button id="raceAgain" class="primary" style="flex:1">Race Again</button><button id="backMenu" style="flex:1">Main Menu</button></div></div>
+<div id="touch"><div id="steerZone" class="touchZone wheelCtl"><div id="steerDot"></div></div><div id="pedalZone" class="touchZone pedals"><div id="gasBtn" class="touchBtn">GAS</div><div id="brakeBtn" class="touchBtn">BRAKE</div></div><button id="powerBtn" class="touchBtn">POWER</button></div>
+<!-- Debug preview: CDN renderer is intentional so this branch can be played directly in-browser. Release builds remain local/offline. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js"></script>
+<script>
+if(!window.THREE){
+  document.body.insertAdjacentHTML('beforeend','<div id="rendererMissing" style="position:fixed;inset:0;z-index:99999;background:#0b1016;color:#fff;display:grid;place-items:center;font:16px system-ui"><div style="max-width:680px;padding:28px"><h2>Polygon Rush preview renderer unavailable</h2><p>This debug preview loads Three.js from the web. Check the browser connection/content blocker, then reload. The protected release build still uses a local renderer.</p></div></div>');
+  throw new Error('THREE preview runtime unavailable');
+}
+</script>
+<script>
+(()=>{'use strict';
+const $=s=>document.querySelector(s), clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*t, TAU=Math.PI*2;
+const storageKey='polygonRushChamp_v2';
+let save={credits:0,unlocked:3,champ:0,stars:0,bestDrift:0};try{Object.assign(save,JSON.parse(localStorage.getItem(storageKey)||'{}'))}catch{};
+const persist=()=>{localStorage.setItem(storageKey,JSON.stringify(save));refreshProgress()};
+const refreshProgress=()=>{if($('#credits'))$('#credits').textContent=save.credits;if($('#unlocks'))$('#unlocks').textContent=`${save.unlocked}/12`;if($('#creditsTop'))$('#creditsTop').textContent=`${save.credits} CR`;if($('#homeUnlocks'))$('#homeUnlocks').textContent=`${save.unlocked} / 12`;if($('#homeStars'))$('#homeStars').textContent=save.stars||0;if($('#homeChampText'))$('#homeChampText').textContent=`Event ${Math.min((save.champ||0)+1,12)} / 12`;};refreshProgress();
+
+const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x8ab7c6,.0034);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;renderer.shadowMap.enabled=true;window.renderer=renderer;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$('#game').appendChild(renderer.domElement);
+const world=new THREE.Group(),deco=new THREE.Group(),carsGroup=new THREE.Group(),fxGroup=new THREE.Group(),ambientFx=new THREE.Group();scene.add(world,deco,carsGroup,fxGroup,ambientFx);
+const hemi=new THREE.HemisphereLight(0xd9f1ff,0x4d4036,1.65);scene.add(hemi);const sun=new THREE.DirectionalLight(0xfff0cf,3.5);sun.position.set(-80,120,55);sun.castShadow=true;sun.shadow.mapSize.set(1536,1536);sun.shadow.camera.left=-160;sun.shadow.camera.right=160;sun.shadow.camera.top=160;sun.shadow.camera.bottom=-160;sun.shadow.camera.near=10;sun.shadow.camera.far=350;scene.add(sun);
+
+const zoneDefs={
+ coast:{sky:0x8dcde1,ground:0x73ad71,road:0x333d44,edge:0xf2efe6,accent:0xffd166,tree:0x4d9f63,rock:0x7b776f,water:0x4babc8},
+ forest:{sky:0x88b5c6,ground:0x4e784d,road:0x343a3d,edge:0xe6e8dd,accent:0xffbd5c,tree:0x2d6842,rock:0x686c63,water:0x4f7f94},
+ canyon:{sky:0xdabf99,ground:0xc7834d,road:0x443e39,edge:0xf1dfc8,accent:0x6ce0d6,tree:0x64804d,rock:0x8a684e,water:0x668aa0},
+ neon:{sky:0x17263c,ground:0x243341,road:0x1a2027,edge:0x9edaff,accent:0xff5fd2,tree:0x3a7f74,rock:0x4f5a66,water:0x284f73},
+ alpine:{sky:0xaed2e0,ground:0xb8c5c9,road:0x394147,edge:0xf9fbff,accent:0xff716b,tree:0x486a57,rock:0x7a8083,water:0x6eafca}
+};
+const carDefs=[
+{name:'Comet',c:0xff5c57,acc:28,top:54,grip:1.12,armor:1,drive:'RWD',mass:1},{name:'Mint GT',c:0x65e0a3,acc:25,top:57,grip:1.06,armor:1.05,drive:'AWD',mass:1.06},{name:'Bolt',c:0x5bbcff,acc:31,top:52,grip:1,armor:.95,drive:'FWD',mass:.94},{name:'Sunray',c:0xffcf57,acc:24,top:59,grip:.98,armor:1.02},{name:'Violet R',c:0xb180ff,acc:27,top:55,grip:1.18,armor:.96},{name:'Pearl',c:0xf3f4f7,acc:26,top:56,grip:1.1,armor:1.08},{name:'Rally Fox',c:0xff8b4a,acc:29,top:53,grip:1.22,armor:1.12},{name:'Aqua RS',c:0x4fe1df,acc:30,top:56,grip:1.1,armor:.92},{name:'Nightbird',c:0x303743,acc:27,top:61,grip:1.02,armor:.9},{name:'Lime X',c:0xa8f05a,acc:32,top:54,grip:1.04,armor:.94},{name:'Crimson 9',c:0xb83838,acc:26,top:58,grip:1.15,armor:1.14},{name:'Royal V12',c:0x5361d8,acc:25,top:62,grip:1.08,armor:1.18}
+];
+let selectedCar=0;
+function buildCarButtons(){const host=$('#carList');host.innerHTML='';carDefs.forEach((c,i)=>{const b=document.createElement('button');b.className='card'+(i===selectedCar?' active':'')+(i>=save.unlocked?' locked':'');b.textContent=(i>=save.unlocked?'🔒 ':'')+c.name;b.style.boxShadow=`inset 0 3px 0 #${c.c.toString(16).padStart(6,'0')}`;b.onclick=()=>{if(i>=save.unlocked)return;selectedCar=i;$('#paint').value='#'+c.c.toString(16).padStart(6,'0');buildCarButtons();if(window.refreshProductionMenus)window.refreshProductionMenus()};host.appendChild(b)})}buildCarButtons();
+
+const champEvents=[['Coastal Cup','coast','circuit',3,400],['Coast Drift Open','coast','drift',5500,450],['Summit Sprint','forest','checkpoint',10,550],['Pine Survival','forest','survival',1,650],['Canyon Knockout','canyon','elimination',1,700],['Canyon GP','canyon','circuit',4,760],['Neon Battle','neon','battle',1,850],['Neon Drift Masters','neon','drift',8500,900],['Alpine Rush','alpine','checkpoint',12,950],['Skyway Grand Prix','alpine','circuit',4,1100],['All-Zone Survival','coast','survival',1,1250],['Polygon Masters Final','neon','circuit',5,1600]];
+function buildChamp(){const host=$('#champList');host.innerHTML='';champEvents.forEach((e,i)=>{const b=document.createElement('button');b.textContent=`${i<save.champ?'✓ ':i===save.champ?'▶ ':'🔒 '}${e[0]} — ${e[4]} cr`;b.disabled=i>save.champ;b.onclick=()=>{if(i>save.champ)return;$('#track').value=e[1];$('#mode').value=e[2];$('#quota').value=e[3];startRace(true,i)};host.appendChild(b)})}buildChamp();
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.page').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.page).classList.add('active')});
+$('#resetProgress').onclick=()=>{if(!confirm('Reset all Polygon Rush progression?'))return;save={credits:0,unlocked:3,champ:0,stars:0,bestDrift:0};persist();buildCarButtons();buildChamp();refreshProductionMenus()};
+
+// --- v12 production menu, persistent profile and settings -----------------
+const productionKey='polygonRushProduction_v12';
+const defaultProduction={profileName:'Player',profileColor:'#7be3a1',quality:'medium',musicMode:'full',audioMix:'balanced',touchMode:'auto',assists:'arcade',cameraMode:'split',weatherMode:'clear',timeMode:'day',gridPos:'middle',resolutionScale:'1',shadow
