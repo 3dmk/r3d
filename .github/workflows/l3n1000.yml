@@ -61,31 +61,34 @@ jobs:
           cmake --build .box3d-src/build-web --target box3d -j2
           test -s .box3d-src/build-web/src/libbox3d.a
 
-      - name: Build exact candidate Box3D WASM runtime
+      - name: Build protected baseline and exact candidate WASM
         run: |
           mkdir -p polygon-rush/l3n/runtime
+          COMMON='-O3 -msimd128 -msse2 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=createBox3DModule -s ENVIRONMENT=web,node -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=1'
+          EXPORTS='-s EXPORTED_FUNCTIONS=["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"] -s EXPORTED_RUNTIME_METHODS=["HEAP32","HEAPF32"]'
+          emcc polygon-rush/box3d/box3d_bridge.c \
+            -I"$GITHUB_WORKSPACE/.box3d-src/include" \
+            "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
+            $COMMON $EXPORTS -o polygon-rush/l3n/runtime/box3d_baseline.js
           emcc polygon-rush/l3n/runtime/candidate_box3d_bridge.c \
             -I"$GITHUB_WORKSPACE/.box3d-src/include" \
             "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
-            -O3 -msimd128 -msse2 \
-            -s WASM=1 \
-            -s MODULARIZE=1 \
-            -s EXPORT_NAME=createBox3DModule \
-            -s ENVIRONMENT='web,node' \
-            -s ALLOW_MEMORY_GROWTH=1 \
-            -s ASSERTIONS=1 \
-            -s EXPORTED_FUNCTIONS='["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"]' \
-            -s EXPORTED_RUNTIME_METHODS='["HEAP32","HEAPF32"]' \
-            -o polygon-rush/l3n/runtime/box3d_candidate.js
-          test -s polygon-rush/l3n/runtime/box3d_candidate.js
+            $COMMON $EXPORTS -o polygon-rush/l3n/runtime/box3d_candidate.js
+          test -s polygon-rush/l3n/runtime/box3d_baseline.wasm
           test -s polygon-rush/l3n/runtime/box3d_candidate.wasm
+          node --check polygon-rush/l3n/runtime/box3d_baseline.js
           node --check polygon-rush/l3n/runtime/box3d_candidate.js
           python3 - <<'PY'
           from pathlib import Path
-          b=Path('polygon-rush/l3n/runtime/box3d_candidate.wasm').read_bytes()
-          assert b[:8] == b'\x00asm\x01\x00\x00\x00'
-          print('Candidate Box3D WASM bytes:',len(b))
+          for f in ['polygon-rush/l3n/runtime/box3d_baseline.wasm','polygon-rush/l3n/runtime/box3d_candidate.wasm']:
+              b=Path(f).read_bytes(); assert b[:8]==b'\x00asm\x01\x00\x00\x00'; print(f,len(b))
           PY
+
+      - name: Run protected baseline physics gate
+        run: |
+          node polygon-rush/l3n/physics_gate.mjs \
+            polygon-rush/l3n/runtime/box3d_baseline.js \
+            polygon-rush/l3n/out/BASELINE_PHYSICS_GATE_REPORT.json
 
       - name: Run mandatory exact-candidate physics gate
         run: |
@@ -93,7 +96,6 @@ jobs:
             polygon-rush/l3n/runtime/box3d_candidate.js \
             polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json \
             polygon-rush/l3n/out/L3N1000_REPORT.json
-          test -s polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json
           node - <<'NODE'
           const r=require('./polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json');
           if(r.passed!==true || r.candidateCertified!==true) throw new Error('Exact candidate physics certification failed');
@@ -102,6 +104,18 @@ jobs:
           if(!(r.leadDistance>4)) throw new Error('Vehicle control did not move racer');
           if(!(r.settledRacers>=4)) throw new Error('Road-contact stability failed');
           console.log('EXACT CANDIDATE PHYSICS GATE PASSED');
+          NODE
+
+      - name: Compare candidate against protected baseline
+        run: |
+          node polygon-rush/l3n/compare_physics_reports.mjs \
+            polygon-rush/l3n/out/BASELINE_PHYSICS_GATE_REPORT.json \
+            polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json \
+            polygon-rush/l3n/out/PHYSICS_AB_REPORT.json
+          node - <<'NODE'
+          const r=require('./polygon-rush/l3n/out/PHYSICS_AB_REPORT.json');
+          if(r.passed!==true) throw new Error('Candidate runtime regressed against baseline: '+r.reasons.join('; '));
+          console.log('A/B runtime gate passed, stability score:',r.stabilityScore);
           NODE
 
       - name: Verify candidate/source runtime contract
@@ -121,5 +135,7 @@ jobs:
           path: |
             polygon-rush/l3n/out/L3N1000_REPORT.json
             polygon-rush/l3n/out/PHYSICS_GATE_REPORT.json
+            polygon-rush/l3n/out/BASELINE_PHYSICS_GATE_REPORT.json
+            polygon-rush/l3n/out/PHYSICS_AB_REPORT.json
             polygon-rush/l3n/out/CANDIDATE_MANIFEST.json
           if-no-files-found: error
