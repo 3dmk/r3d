@@ -22,6 +22,16 @@ jobs:
       - name: Restore Polygon Rush v14.6 index
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          bad='\n},1)}\n }\n}\n\nconst renderer'
+          good='\n}\n\nconst renderer'
+          if bad in s:
+              s=s.replace(bad,good,1)
+          p.write_text(s)
+          PY
           grep -q "Polygon Rush v14.6" index.html
           test "$(wc -c < index.html)" -gt 50000
 
