@@ -27,7 +27,6 @@ jobs:
           p=Path('index.html')
           s=p.read_text()
           s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
-
           old="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y,car.pos.z,car.heading);"
           new="const id=m._pr_b3_create_vehicle(BOX3D.world,car.pos.x,car.pos.y+.90,car.pos.z,car.heading);"
           if old not in s: raise SystemExit('Box3D create vehicle signature not found')
@@ -36,56 +35,18 @@ jobs:
           new="car.pos.set(f[base],f[base+1]-.90,f[base+2]);"
           if old not in s: raise SystemExit('Box3D sync position not found')
           s=s.replace(old,new,1)
-
-          marker="function hybridMove(car,controls,dt){"
-          control_filter=r'''function moveToward(v,target,rate,dt){
- const d=target-v,m=rate*Math.min(dt,.05);
- return Math.abs(d)<=m?target:v+Math.sign(d)*m;
-}
-function shapeDriveControls(car,controls,dt){
- const st=car._driveInput||(car._driveInput={throttle:0,brake:0,steer:0,handbrake:0});
- const lv=localVelocity(car),speed=Math.abs(lv.long);
- const steerScale=clamp(1-speed/115,.52,1);
- const targetSteer=clamp(controls.steer||0,-1,1)*steerScale;
- const targetThrottle=clamp(controls.throttle||0,0,1);
- const targetBrake=clamp(controls.brake||0,0,1);
- st.throttle=moveToward(st.throttle,targetThrottle,targetThrottle>st.throttle?4.4:7.5,dt);
- st.brake=moveToward(st.brake,targetBrake,targetBrake>st.brake?7.5:11,dt);
- st.steer=moveToward(st.steer,targetSteer,Math.abs(targetSteer)>Math.abs(st.steer)?5.4:8.5,dt);
- st.handbrake=moveToward(st.handbrake,controls.handbrake?1:0,12,dt);
- if(st.brake>.12)st.throttle*=Math.max(0,1-st.brake*.82);
- return {throttle:st.throttle,brake:st.brake,steer:st.steer,handbrake:st.handbrake,nitro:!!controls.nitro};
-}
-function hybridMove(car,controls,dt){'''
-          if marker not in s: raise SystemExit('hybridMove marker not found')
-          s=s.replace(marker,control_filter,1)
-          old="function hybridMove(car,controls,dt){\n if(BOX3D.active){\n  box3dApplyControl(car,controls);"
-          # marker was already replaced; patch the first body statements instead.
-          old_body="function hybridMove(car,controls,dt){\n if(BOX3D.active){\n  box3dApplyControl(car,controls);"
-          new_body="function hybridMove(car,controls,dt){\n const shaped=shapeDriveControls(car,controls,dt);\n if(BOX3D.active){\n  box3dApplyControl(car,shaped);"
-          if old_body not in s: raise SystemExit('hybridMove Box3D body not found after filter insertion')
-          s=s.replace(old_body,new_body,1)
-          old_fallback=" return applyArcadeMovement(car,controls,dt);\n}"
-          new_fallback=" return applyArcadeMovement(car,shaped,dt);\n}"
-          if old_fallback not in s: raise SystemExit('hybridMove fallback not found')
-          s=s.replace(old_fallback,new_fallback,1)
-
           old="function start(){buildWorld($('#track').value);spawn();running=true;paused=false;raceTime=0;$('#menu').style.display='none';$('#hud').style.display='flex';$('#msg').textContent='GO!';setTimeout(()=>$('#msg').textContent='',700)}"
           new="function start(){\n const menu=$('#menu'),hud=$('#hud'),msg=$('#msg'),btn=$('#start');\n if(btn){btn.disabled=true;btn.textContent='STARTING...'}\n if(menu)menu.style.display='none';if(hud)hud.style.display='flex';if(msg)msg.textContent='LOADING RACE...';\n try{const track=$('#track')?.value||'coast';buildWorld(track);spawn();if(!player||ais.length!==4)throw new Error('Racer spawn failed: '+(player?1:0)+' player + '+ais.length+' opponents');running=true;paused=false;raceTime=0;raceStarted=true;finished=false;countdown=0;if(BOX3D.active){box3dDestroyAll();box3dClearStatics();box3dBuildTrackWorld();box3dCreateVehicle(player);for(const ai of ais)box3dCreateVehicle(ai);if(BOX3D.bodies.size!==5)throw new Error('Box3D racer body creation failed: '+BOX3D.bodies.size+'/5')}if(msg)msg.textContent='GO!';setTimeout(()=>{if(msg)msg.textContent=''},700)}catch(e){console.error('START RACE FAILED',e);running=false;paused=false;if(menu)menu.style.display='block';if(hud)hud.style.display='none';if(msg){msg.textContent='START ERROR — PRESS F3';msg.style.display='block'}const dbg=$('#debug');if(dbg){dbg.classList.add('open');dbg.textContent='START RACE ERROR\\n'+(e?.stack||e)}}finally{if(btn){btn.disabled=false;btn.textContent='START RACE'}}\n}"
           if old not in s: raise SystemExit('expected start() function not found')
           s=s.replace(old,new,1)
           s=s.replace("$('#start').onclick=start;","const startButton=$('#start');if(startButton)startButton.addEventListener('click',e=>{e.preventDefault();start()});",1)
-          s=s.replace('Polygon Rush v14.6 GitHub Box3D','Polygon Rush v14.8 Engineering Pass 1')
-          s=s.replace('v14.6 • GITHUB BOX3D LIVE','v14.8 • ENGINEERING PASS 1')
-          s=s.replace('Polygon Rush v14.6\\n','Polygon Rush v14.8\\n')
           p.write_text(s)
           PY
+          node polygon-rush/engineering/pass1_patch.mjs index.html
           grep -q "Polygon Rush v14.8" index.html
           grep -q "car.pos.y+.90" index.html
           grep -q "ais.length!==4" index.html
           grep -q "function shapeDriveControls" index.html
-          grep -q "box3dApplyControl(car,shaped)" index.html
-          grep -q "applyArcadeMovement(car,shaped,dt)" index.html
           test "$(wc -c < index.html)" -gt 50000
 
       - name: Setup Emscripten
