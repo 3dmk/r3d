@@ -17,7 +17,6 @@ s=s.replaceAll("$('#box3dHud').textContent='ARCADE'","$('#box3dHud').textContent
 s=s.replaceAll('Physics backend: ARCADE','Physics backend: WHEEL PHYSICS');
 s=s.replaceAll('OWNERSHIP: arcade solver owns player + AI movement','OWNERSHIP: four-wheel tire/suspension solver owns player + AI movement');
 
-// Give every visible wheel persistent physical metadata and spin the rim with the tire.
 s=s.replace('pivot.userData.tire=tire;allWheels.push(pivot);if(z>0)frontWheels.push(pivot)',
 `pivot.userData.tire=tire;pivot.userData.rim=rim;pivot.userData.localX=x;pivot.userData.localZ=z;pivot.userData.front=z>0;pivot.userData.spin=0;pivot.userData.compression=.5;allWheels.push(pivot);if(z>0)frontWheels.push(pivot)`);
 
@@ -106,7 +105,6 @@ replaceFunction('animateBuggy',`function animateBuggy(car,long,lat,dt){
  }
 }`);
 
-// Collision response now changes chassis velocity and yaw instead of only pushing a hovercraft body away.
 replaceFunction('resolveWorldCollision',`function resolveWorldCollision(car,obj,radius=1.9,breakable=false){
  if(!obj.visible)return;
  const dx=car.pos.x-obj.position.x,dz=car.pos.z-obj.position.z,d=Math.hypot(dx,dz);if(d<=.001||d>radius)return;
@@ -118,13 +116,12 @@ replaceFunction('resolveWorldCollision',`function resolveWorldCollision(car,obj,
  car.vel.multiplyScalar(.90);applyImpactDamage(car,speed/52,'collision');
 }`);
 
-// Expose physical state to the browser gate/debugging.
 s=s.replace("window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true};",
-            "window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true};");
+            "window.__polygonRush={version:'15.5',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,state:()=>({aiCount:ais.length,hasPlayer:!!player,wheels:player?.g?.userData?.allWheels?.length||0,ai:ais.map(a=>[a.pos.x,a.pos.z]),player:player?{p:[player.pos.x,player.pos.z],h:player.heading,speed:Math.abs(player.speed||0),spin:(player.g?.userData?.allWheels||[]).map(w=>w.userData.spin||0),states:player._wheelPhysics?.length||0}:null})};");
 s=s.replace("window.__polygonRush={version:'15.5',boot:true,solver:'wheel-physics'};",
             "window.__polygonRush={version:'15.5',boot:true,solver:'wheel-physics',wheelPhysics:true};");
 
-for(const r of ['Polygon Rush v15.5 Wheel Physics Rebuild','const WHEEL_PHYS=','car._wheelPhysics=wheelStates','w.userData.rim.rotation.y=w.userData.spin','Physics backend: WHEEL PHYSICS','wheelPhysics:true'])must(s.includes(r),'v15.5 missing '+r);
+for(const r of ['Polygon Rush v15.5 Wheel Physics Rebuild','const WHEEL_PHYS=','car._wheelPhysics=wheelStates','w.userData.rim.rotation.y=w.userData.spin','Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>'])must(s.includes(r),'v15.5 missing '+r);
 for(const bad of ["solver:'arcade'","$('#box3dHud').textContent='ARCADE'"])must(!s.includes(bad),'v15.5 stale '+bad);
 fs.writeFileSync(file,s);
 console.log('Polygon Rush v15.5 wheel physics rebuild applied');
