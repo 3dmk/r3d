@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 concurrency:
@@ -19,20 +19,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore Polygon Rush v14.6 index
+      - name: Rebuild Polygon Rush v14.6.1 hotfix index
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          bad='\n},1)}\n }\n}\n\nconst renderer'
-          good='\n}\n\nconst renderer'
-          if bad in s:
-              s=s.replace(bad,good,1)
+          # Repair the known split-source corruption at the part01/part02 boundary.
+          s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
+
+          old="function start(){buildWorld($('#track').value);spawn();running=true;paused=false;raceTime=0;$('#menu').style.display='none';$('#hud').style.display='flex';$('#msg').textContent='GO!';setTimeout(()=>$('#msg').textContent='',700)}"
+          new="""function start(){
+ const menu=$('#menu'),hud=$('#hud'),msg=$('#msg'),btn=$('#start');
+ if(btn){btn.disabled=true;btn.textContent='STARTING...'}
+ if(menu)menu.style.display='none';if(hud)hud.style.display='flex';if(msg)msg.textContent='LOADING RACE...';
+ try{
+  const track=$('#track')?.value||'coast';
+  buildWorld(track);spawn();
+  running=true;paused=false;raceTime=0;raceStarted=true;finished=false;countdown=0;
+  if(BOX3D.active){box3dDestroyAll();box3dClearStatics();box3dBuildTrackWorld();box3dCreateVehicle(player);for(const ai of ais)box3dCreateVehicle(ai)}
+  if(msg)msg.textContent='GO!';setTimeout(()=>{if(msg)msg.textContent=''},700);
+ }catch(e){
+  console.error('START RACE FAILED',e);running=false;paused=false;
+  if(menu)menu.style.display='block';if(hud)hud.style.display='none';
+  if(msg){msg.textContent='START ERROR — PRESS F3';msg.style.display='block'}
+  const dbg=$('#debug');if(dbg){dbg.classList.add('open');dbg.textContent='START RACE ERROR\\n'+(e?.stack||e)}
+ }finally{if(btn){btn.disabled=false;btn.textContent='START RACE'}}
+}"""
+          if old not in s:
+              raise SystemExit('expected start() function not found')
+          s=s.replace(old,new,1)
+          s=s.replace("$('#start').onclick=start;","const startButton=$('#start');if(startButton)startButton.addEventListener('click',e=>{e.preventDefault();start()});",1)
+          s=s.replace('Polygon Rush v14.6 GitHub Box3D','Polygon Rush v14.6.1 Start Hotfix')
+          s=s.replace('v14.6 • GITHUB BOX3D LIVE','v14.6.1 • START HOTFIX + BOX3D')
+          s=s.replace('Polygon Rush v14.6\\n','Polygon Rush v14.6.1\\n')
           p.write_text(s)
           PY
-          grep -q "Polygon Rush v14.6" index.html
+          grep -q "Polygon Rush v14.6.1" index.html
+          grep -q "START RACE FAILED" index.html
           test "$(wc -c < index.html)" -gt 50000
 
       - name: Setup Emscripten
@@ -75,6 +100,8 @@ jobs:
           s=pathlib.Path('index.html').read_text()
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
+          assert "function start(){" in s
+          assert "START RACE FAILED" in s
           PY
           node --check /tmp/polygon-rush-inline.js
           python3 - <<'PY'
@@ -84,14 +111,8 @@ jobs:
           print('Box3D WASM bytes:',len(b))
           PY
 
-      - name: Commit generated v14.6 runtime
-        run: |
-          rm -rf .box3d-src
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html box3d_bridge.js box3d_bridge.wasm
-          git diff --cached --quiet || git commit -m "Polygon Rush v14.6 GitHub playable Box3D runtime"
-          git push
+      - name: Remove build-only source
+        run: rm -rf .box3d-src
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
