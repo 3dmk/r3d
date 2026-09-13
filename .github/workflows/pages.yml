@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v14.10 Engineering Pass 3
+      - name: Rebuild Polygon Rush v15.0 Consolidated Engineering
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -45,15 +45,18 @@ jobs:
           node polygon-rush/engineering/pass1_patch.mjs index.html
           node polygon-rush/engineering/pass2_patch.mjs index.html
           node polygon-rush/engineering/pass3_patch.mjs index.html
-          grep -q "Polygon Rush v14.10" index.html
+          node polygon-rush/engineering/pass4_all_audits_patch.mjs index.html
+          curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
+          grep -q "Polygon Rush v15.0" index.html
           grep -q "car.pos.y+.90" index.html
           grep -q "ais.length!==4" index.html
           grep -q "function shapeDriveControls" index.html
           grep -q "bodyOwners:new Map()" index.html
-          grep -q "o.castShadow=false" index.html
           grep -q "const TRACK_CELL=24" index.html
-          grep -q "function rebuildTrackSpatial" index.html
-          grep -q "trackLookupStats.fallbacks" index.html
+          grep -q "const FX={dustPool" index.html
+          grep -q "Frame avg/p95/max ms" index.html
+          grep -q "three.min.js" index.html
+          test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
 
       - name: Setup Emscripten
@@ -73,6 +76,8 @@ jobs:
 
       - name: Build Polygon Rush Box3D runtime
         run: |
+          grep -q "static float g_state_buf\[7\]" polygon-rush/box3d/box3d_bridge.c
+          grep -q "static float g_contact_buf" polygon-rush/box3d/box3d_bridge.c
           emcc polygon-rush/box3d/box3d_bridge.c \
             -I"$GITHUB_WORKSPACE/.box3d-src/include" \
             "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
@@ -91,25 +96,20 @@ jobs:
       - name: Validate generated game
         run: |
           node --check box3d_bridge.js
+          node --check three.min.js
           python3 - <<'PY'
           import re, pathlib
           s=pathlib.Path('index.html').read_text()
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
-          assert "ais.length!==4" in s
-          assert "BOX3D.bodies.size!==5" in s
-          assert "car.pos.y+.90" in s
-          assert "f[base+1]-.90" in s
-          assert "function shapeDriveControls" in s
-          assert "box3dApplyControl(car,shaped)" in s
-          assert "applyArcadeMovement(car,shaped,dt)" in s
-          assert "bodyOwners:new Map()" in s
-          assert "o.castShadow=false;world.add(o)" in s
-          assert "new THREE.BoxGeometry(1.8,.8,.32),bmat)" in s
-          assert "const TRACK_CELL=24" in s
-          assert "function rebuildTrackSpatial" in s
-          assert "rebuildTrackSpatial();curve=" in s
-          assert "trackLookupStats.fallbacks++" in s
+          required=[
+            "ais.length!==4","BOX3D.bodies.size!==5","car.pos.y+.90","f[base+1]-.90",
+            "function shapeDriveControls","box3dApplyControl(car,shaped)","applyArcadeMovement(car,shaped,dt)",
+            "bodyOwners:new Map()","const TRACK_CELL=24","function rebuildTrackSpatial","trackLookupStats.fallbacks++",
+            "const FX={dustPool:[]","function handlingProfile()","Frame avg/p95/max ms","Optional LAN client",
+            "three.min.js","Polygon Rush v15.0 Consolidated Engineering"
+          ]
+          for r in required: assert r in s, r
           PY
           node --check /tmp/polygon-rush-inline.js
           python3 - <<'PY'
