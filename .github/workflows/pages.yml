@@ -1,10 +1,10 @@
-name: Deploy R3D Pages
+name: Deploy Polygon Rush Pages
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
@@ -18,6 +18,70 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Restore Polygon Rush v14.6 index
+        run: |
+          base64 -d polygon-rush/v14.6/index.html.gz.b64 | gzip -d > index.html
+          grep -q "Polygon Rush v14.6" index.html
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.69
+          actions-cache-folder: emsdk-cache
+
+      - name: Checkout Box3D v0.1.0
+        run: git clone --depth 1 --branch v0.1.0 https://github.com/erincatto/box3d.git .box3d-src
+
+      - name: Build Box3D library
+        run: |
+          emcmake cmake -S .box3d-src -B .box3d-src/build-web -DBOX3D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build .box3d-src/build-web --target box3d -j2
+          test -s .box3d-src/build-web/src/libbox3d.a
+
+      - name: Build Polygon Rush Box3D runtime
+        run: |
+          emcc polygon-rush/box3d/box3d_bridge.c \
+            -I"$GITHUB_WORKSPACE/.box3d-src/include" \
+            "$GITHUB_WORKSPACE/.box3d-src/build-web/src/libbox3d.a" \
+            -O3 -msimd128 -msse2 \
+            -s WASM=1 \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME=createBox3DModule \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s ASSERTIONS=1 \
+            -s EXPORTED_FUNCTIONS='["_pr_b3_create_world","_pr_b3_create_vehicle","_pr_b3_create_static_box","_pr_b3_destroy_body","_pr_b3_step","_pr_b3_apply_vehicle_control","_pr_b3_get_body_state","_pr_b3_get_contacts","_pr_b3_free_state","_pr_b3_free_contacts","_malloc","_free"]' \
+            -s EXPORTED_RUNTIME_METHODS='["HEAP32","HEAPF32"]' \
+            -o box3d_bridge.js
+          test -s box3d_bridge.js
+          test -s box3d_bridge.wasm
+
+      - name: Validate generated game
+        run: |
+          node --check box3d_bridge.js
+          python3 - <<'PY'
+          import re, pathlib
+          s=pathlib.Path('index.html').read_text()
+          js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
+          pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
+          PY
+          node --check /tmp/polygon-rush-inline.js
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('box3d_bridge.wasm').read_bytes()
+          assert b[:8] == b'\x00asm\x01\x00\x00\x00'
+          print('Box3D WASM bytes:',len(b))
+          PY
+
+      - name: Commit generated v14.6 runtime
+        run: |
+          rm -rf .box3d-src
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html box3d_bridge.js box3d_bridge.wasm
+          git diff --cached --quiet || git commit -m "Polygon Rush v14.6 GitHub playable Box3D runtime"
+          git push
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
