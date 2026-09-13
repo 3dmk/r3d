@@ -23,21 +23,21 @@ jobs:
       - name: Checkout Box3D v0.1.0
         run: git clone --depth 1 --branch v0.1.0 https://github.com/erincatto/box3d.git box3d
 
-      - name: Build Box3D for WebAssembly
+      - name: Build Box3D library for WebAssembly
         run: |
-          emcmake cmake -S box3d -B box3d/build-web -DBOX3D_SAMPLES=OFF -DBOX3D_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
-          cmake --build box3d/build-web -j2
-          find box3d/build-web -name 'libbox3d.a' -print
+          emcmake cmake -S box3d -B box3d/build-web -DBOX3D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build box3d/build-web --target box3d -j2
+          test -s box3d/build-web/src/libbox3d.a
 
       - name: Build Polygon Rush bridge
         run: |
-          LIB=$(find box3d/build-web -name 'libbox3d.a' -print -quit)
-          test -n "$LIB"
+          LIB="$GITHUB_WORKSPACE/box3d/build-web/src/libbox3d.a"
           cd polygon-rush/box3d
           emcc box3d_bridge.c \
-            -I../../box3d/include \
-            "$GITHUB_WORKSPACE/$LIB" \
+            -I"$GITHUB_WORKSPACE/box3d/include" \
+            "$LIB" \
             -O3 \
+            -msimd128 -msse2 \
             -s WASM=1 \
             -s MODULARIZE=1 \
             -s EXPORT_NAME=createBox3DModule \
