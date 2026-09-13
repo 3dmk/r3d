@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.4 Core Drive Rebuild
+      - name: Rebuild Polygon Rush v15.5 Wheel Physics Rebuild
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -30,13 +30,14 @@ jobs:
           p.write_text(s)
           PY
           node polygon-rush/engineering/v15_4_core_drive_rebuild.mjs index.html
+          node polygon-rush/engineering/v15_5_wheel_physics_rebuild.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.4
-          cp index.html play/v15.4/index.html
-          cp three.min.js play/v15.4/three.min.js
-          printf 'Polygon Rush v15.4 Core Drive Rebuild\n' > play/v15.4/VERSION.txt
+          mkdir -p play/v15.5
+          cp index.html play/v15.5/index.html
+          cp three.min.js play/v15.5/three.min.js
+          printf 'Polygon Rush v15.5 Wheel Physics Rebuild\n' > play/v15.5/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -47,32 +48,29 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.4 Core Drive Rebuild',
-            'playerIdx=248',
-            'gridIdx=[250,251,253,254]',
-            'countdown=3.2',
-            'function runArcadeSolverSelfTest',
-            'window.__polygonRush.selfTestDistance',
-            'START invariant failed: expected 1 player + 4 opponents',
-            'Physics backend: ARCADE',
+            'Polygon Rush v15.5 Wheel Physics Rebuild',
+            'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
+            'const WHEEL_PHYS=','car._wheelPhysics=wheelStates',
+            'w.userData.rim.rotation.y=w.userData.spin',
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true',
+            'function runArcadeSolverSelfTest','START invariant failed: expected 1 player + 4 opponents',
             'three.min.js'
           ]
           for r in required: assert r in s, r
           forbidden=[
             '<script src="box3d_bridge.js"></script>',
             'if(BOX3D.active){box3dStep(dt);box3dSyncAllCars()}',
-            'initBox3D();requestAnimationFrame(loop);'
+            'initBox3D();requestAnimationFrame(loop);',
+            "solver:'arcade'"
           ]
           for r in forbidden: assert r not in s, r
-          assert s.count('function hybridMove(car,controls,dt){')==1
+          assert s.count('function applyArcadeMovement(car,controls,dt){')==1
+          assert s.count('function animateBuggy(car,long,lat,dt){')==1
           assert s.count('function physicsPlayer(dt){')==1
           assert s.count('function updateAI(dt){')==1
-          assert s.count('function start(){')==1
-          assert s.count("if(e.code==='KeyR')recover();")==1
-          v=pathlib.Path('play/v15.4/index.html').read_text()
-          assert 'Polygon Rush v15.4 Core Drive Rebuild' in v
-          assert '<script src="box3d_bridge.js"></script>' not in v
-          assert pathlib.Path('play/v15.4/VERSION.txt').read_text().strip()=='Polygon Rush v15.4 Core Drive Rebuild'
+          v=pathlib.Path('play/v15.5/index.html').read_text()
+          assert 'Polygon Rush v15.5 Wheel Physics Rebuild' in v
+          assert pathlib.Path('play/v15.5/VERSION.txt').read_text().strip()=='Polygon Rush v15.5 Wheel Physics Rebuild'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -82,7 +80,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run real browser gameplay gate
+      - name: Run real browser wheel-physics gameplay gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -94,33 +92,42 @@ jobs:
             const page=await browser.newPage({viewport:{width:1280,height:720}});
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
-            page.on('console',m=>{ if(m.type()==='error') errors.push('console: '+m.text()); });
-            await page.goto('http://127.0.0.1:4173/play/v15.4/',{waitUntil:'networkidle'});
+            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+            await page.goto('http://127.0.0.1:4173/play/v15.5/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.4') throw new Error('Wrong deployed version: '+JSON.stringify(boot));
-            if(!(boot.selfTestDistance>2)) throw new Error('Arcade startup self-test did not move: '+JSON.stringify(boot));
+            if(boot.version!=='15.5'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong physics build: '+JSON.stringify(boot));
+            if(!(boot.selfTestDistance>2))throw new Error('Wheel solver self-test did not move: '+JSON.stringify(boot));
             await page.click('#start');
             await page.waitForFunction(()=>window.__polygonRush?.startOk===true,{timeout:5000});
-            const start=await page.evaluate(()=>({diag:window.__polygonRush,aiCount:ais.length,hasPlayer:!!player,player:[player.pos.x,player.pos.z],ai:ais.map(a=>[a.pos.x,a.pos.z])}));
-            if(!start.hasPlayer||start.aiCount!==4||start.diag.racers!==5) throw new Error('Five-car start invariant failed: '+JSON.stringify(start));
+            const start=await page.evaluate(()=>({diag:window.__polygonRush,aiCount:ais.length,hasPlayer:!!player,wheels:player.g.userData.allWheels.length}));
+            if(!start.hasPlayer||start.aiCount!==4||start.diag.racers!==5||start.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
             await page.waitForFunction(()=>window.__polygonRush?.go===true,{timeout:6000});
             const ai0=await page.evaluate(()=>ais.map(a=>[a.pos.x,a.pos.z]));
             await page.waitForTimeout(1800);
             const ai1=await page.evaluate(()=>ais.map(a=>[a.pos.x,a.pos.z]));
             const aiMoved=ai1.some((p,i)=>Math.hypot(p[0]-ai0[i][0],p[1]-ai0[i][1])>0.5);
-            if(!aiMoved) throw new Error('AI movement gate failed: opponents did not move after GO');
-            const p0=await page.evaluate(()=>[player.pos.x,player.pos.z]);
+            if(!aiMoved)throw new Error('AI wheel-physics movement gate failed');
+            const p0=await page.evaluate(()=>({p:[player.pos.x,player.pos.z],h:player.heading,spin:player.g.userData.allWheels.map(w=>w.userData.spin||0)}));
             await page.keyboard.down('KeyW');
-            await page.waitForTimeout(1600);
+            await page.waitForTimeout(1400);
+            const pMid=await page.evaluate(()=>({p:[player.pos.x,player.pos.z],speed:Math.abs(player.speed||0),spin:player.g.userData.allWheels.map(w=>w.userData.spin||0),states:player._wheelPhysics?.length||0}));
+            await page.keyboard.down('KeyA');
+            await page.waitForTimeout(900);
+            await page.keyboard.up('KeyA');
             await page.keyboard.up('KeyW');
-            const p1=await page.evaluate(()=>[player.pos.x,player.pos.z,Math.abs(player.speed||0)]);
-            const playerDist=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]);
-            if(!(playerDist>0.5&&p1[2]>0.2)) throw new Error('Player W movement gate failed: '+JSON.stringify({p0,p1,playerDist}));
+            const p1=await page.evaluate(()=>({p:[player.pos.x,player.pos.z],h:player.heading,speed:Math.abs(player.speed||0),spin:player.g.userData.allWheels.map(w=>w.userData.spin||0)}));
+            const playerDist=Math.hypot(p1.p[0]-p0.p[0],p1.p[1]-p0.p[1]);
+            const headingChange=Math.abs(p1.h-p0.h);
+            const wheelSpinChanged=p1.spin.some((v,i)=>Math.abs(v-p0.spin[i])>0.2);
+            if(!(playerDist>0.5&&p1.speed>0.2))throw new Error('Player movement failed: '+JSON.stringify({p0,p1,playerDist}));
+            if(pMid.states!==4)throw new Error('Four physical wheel states missing: '+JSON.stringify(pMid));
+            if(!wheelSpinChanged)throw new Error('Wheel rotation gate failed: '+JSON.stringify({before:p0.spin,after:p1.spin}));
+            if(!(headingChange>0.01))throw new Error('Steering/yaw gate failed: '+headingChange);
             const hud=await page.textContent('#speed');
-            if(!(Number(hud)>0)) throw new Error('HUD speed did not update: '+hud);
-            if(errors.length) throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('PLAYABLE GATE PASS',JSON.stringify({version:boot.version,selfTestDistance:boot.selfTestDistance,aiMoved,playerDist,speed:p1[2],hudSpeed:Number(hud)}));
+            if(!(Number(hud)>0))throw new Error('HUD speed did not update: '+hud);
+            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
+            console.log('WHEEL PHYSICS PLAYABLE GATE PASS',JSON.stringify({version:boot.version,aiMoved,playerDist,headingChange,wheelSpinChanged,speed:p1.speed,hudSpeed:Number(hud)}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
