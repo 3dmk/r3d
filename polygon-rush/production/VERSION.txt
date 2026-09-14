@@ -1,1 +1,1 @@
-Polygon Rush v15.5.31 Free Roam Physics Fix
+Polygon Rush v15.5.32 Real Surface Collisions
