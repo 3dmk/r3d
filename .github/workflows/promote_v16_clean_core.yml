@@ -2,7 +2,9 @@ name: Promote Polygon Rush v16 Clean Core
 on:
   push:
     branches: [main]
-    paths: ['polygon-rush/production/index.html']
+    paths:
+      - 'polygon-rush/production/index.html'
+      - '.github/workflows/promote_v16_clean_core.yml'
   workflow_dispatch:
 permissions:
   contents: write
