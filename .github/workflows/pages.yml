@@ -59,7 +59,7 @@ jobs:
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
             'testCarSteering:()=>','testStraightHold:()=>','testDriveFriction:()=>',
             'testWeightedDrive:()=>','testSteerCurve:()=>','testCornerInertia:()=>',
-            'cornerInertia:1.72','tireAlign:7.4','alignRelease:9.2','const cornerAccel=-long*car.yawRate',
+            'cornerInertia:.72','tireAlign:8.6','alignRelease:9.8','const cornerAccel=-long*car.yawRate',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
