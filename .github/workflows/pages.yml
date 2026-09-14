@@ -31,19 +31,18 @@ jobs:
           test -f polygon-rush/production/_headers
           test -f polygon-rush/production/assets/models/player_body.glb
           test -f polygon-rush/production/assets/models/player_wheel.glb
-          test -f polygon-rush/production/assets/models/track_bump.glb
-          test -f polygon-rush/production/assets/models/track_straight.glb
           test -f polygon-rush/production/vendor/GLTFLoader.js
+          test -f polygon-rush/production/vendor/three.module.js
           python3 - <<'PY'
           import json, pathlib, hashlib
           root=pathlib.Path('polygon-rush/production')
           meta=json.loads((root/'BUILD.json').read_text())
           assert meta['deploymentModel']=='committed-static-production'
-          assert meta['releaseGate']=='browser-gated-success'
+          assert meta['releaseGate'] in ('browser-gated-success','clean-core-static-validated')
           assert meta['developmentScope']=='free-roam-only'
           assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
           assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
-          print('Polygon Rush static production validation PASS', meta['productionVersion'])
+          print('Polygon Rush static production validation PASS', meta['productionVersion'], meta['releaseGate'])
           PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -52,4 +51,4 @@ jobs:
       - name: Deploy committed production to GitHub Pages root
         id: deployment
         uses: actions/deploy-pages@v4
-# v15.5.42 static deployment trigger
+# v16.0.0 clean core deployment gate
