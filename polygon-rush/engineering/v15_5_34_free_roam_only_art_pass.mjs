@@ -50,9 +50,10 @@ const anchor="window.addEventListener('keydown'";
 must(s.includes(anchor),'event anchor missing');s=s.replace(anchor,art+'\n'+anchor);
 
 s=s.replace("$('#box3dHud').textContent='WHEEL PHYSICS';\n  window.__polygonRush={","$('#box3dHud').textContent='WHEEL PHYSICS';\n  if(freeRoamMode)decorateFreeRoamProduction();\n  window.__polygonRush={");
+s=s.replaceAll("wheelPhysics:true,","wheelPhysics:true,productionArt:()=>{const a=world.getObjectByName('freeRoamProductionArt');return {present:!!a,children:a?.children?.length||0,count:a?.userData?.modelCount||0}},");
 s=s.replaceAll("buildWorld('freeroam');cam.position","buildWorld('freeroam');decorateFreeRoamProduction();cam.position");
 s=s.replace("window.__polygonRush={version:'15.5.29',boot:true","enforceFreeRoamOnly();window.__polygonRush={version:'15.5.34',boot:true");
 
 s+='\n<!-- v15.5.34 free-roam-only stylized-pbr production-art -->\n';
-for(const x of ['v15.5.34','FREE ROAM • PRODUCTION MAP','decorateFreeRoamProduction','freeRoamProductionArt','enforceFreeRoamOnly'])must(s.includes(x),'missing '+x);
+for(const x of ['v15.5.34','FREE ROAM • PRODUCTION MAP','decorateFreeRoamProduction','freeRoamProductionArt','enforceFreeRoamOnly','productionArt:()=>'])must(s.includes(x),'missing '+x);
 fs.writeFileSync(file,s);console.log('v15.5.34 Free Roam only art pass applied');
