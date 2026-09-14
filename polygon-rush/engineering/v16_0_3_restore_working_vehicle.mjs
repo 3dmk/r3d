@@ -25,7 +25,6 @@ s=s.replace("const car={pos:new THREE.Vector3(0,1.16,8)","const car={pos:new THR
 s=s.replace("local.y=.47;","local.y=.38;");
 
 // Visual wheel mounts remain larger visually, without rewriting physical tire radius.
-// Wheel visual center stays slightly higher to fit the 0.47m visual tire.
 s=s.replace("const mounts=[[-CAR.track/2,.47,CAR.wheelBase/2],[CAR.track/2,.47,CAR.wheelBase/2],[-CAR.track/2,.47,-CAR.wheelBase/2],[CAR.track/2,.47,-CAR.wheelBase/2]];","const mounts=[[-CAR.track/2,.47,CAR.wheelBase/2],[CAR.track/2,.47,CAR.wheelBase/2],[-CAR.track/2,.47,-CAR.wheelBase/2],[CAR.track/2,.47,-CAR.wheelBase/2]];");
 
 // Diagnostics make the visual/physical split explicit.
@@ -36,3 +35,4 @@ s += '\n<!-- v16.0.3 regression repair: v16.0.1 physics/controller restored exac
 for(const x of ["VERSION='16.0.3'","mass:1180","springK:30000","engineForce:9200","physicsWheelRadius:.39","workingVehicleTuneRestored:true"])must(s.includes(x),'missing '+x);
 fs.writeFileSync(file,s);
 console.log('v16.0.3 working vehicle restore applied');
+// trigger-release
