@@ -29,3 +29,4 @@ s=s.replace("carDimensions:[CAR.width,CAR.height,CAR.length]","carDimensions:[CA
 s+='\n<!-- v16.0.2 larger 0.47m wheels; 980kg chassis; lower rotational inertia; softer suspension; reduced rolling/aero drag -->\n';
 for(const x of ["VERSION='16.0.2'","wheelRadius:.47","mass:980","springK:25500"])must(s.includes(x),'missing '+x);
 fs.writeFileSync(file,s);console.log('v16.0.2 wheel/chassis balance applied');
+// release trigger
