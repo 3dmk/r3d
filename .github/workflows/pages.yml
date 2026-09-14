@@ -53,6 +53,7 @@ jobs:
           node polygon-rush/engineering/v15_5_17_terrain_lightness_fix.mjs index.html
           node polygon-rush/engineering/v15_5_18_tight_corner_steering_fix.mjs index.html
           node polygon-rush/engineering/v15_5_19_countersteer_recovery_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_20_acceleration_momentum_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
@@ -71,10 +72,11 @@ jobs:
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
             'Polygon Rush v15.5.17 Corner Drive + Steering Response','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
-            'testSteeringAcceleration:()=>','testBrakeRecovery:()=>','testCornerDriveResponse:()=>','testCounterSteerRecovery:()=>','testGripCornering:()=>','testCollision:()=>','testAI:',
+            'testSteeringAcceleration:()=>','testBrakeRecovery:()=>','testCornerDriveResponse:()=>','testCounterSteerRecovery:()=>','testAccelerationMomentum:()=>','testGripCornering:()=>','testCollision:()=>','testAI:',
             'yawInertiaScale:1.12','cornerCombinedGrip:1.28','drivenLongPriority:.90','steeringDriveAssist:.38','steeringYawRelease:2.4',
             'rackRate=12.6','requestedLong','reservedLong','brakeMaxDecel:8.2','brakeReleaseRate:20.0',
-            'counterSteerYawBrake:13.5','counterSteerLatAlign:7.8','Physics backend: WHEEL PHYSICS','wheelPhysics:true','three.min.js'
+            'counterSteerYawBrake:13.5','counterSteerLatAlign:7.8','driveMomentumRise:5.8','driveMomentumFall:1.45','driveMomentumAccel:4.6',
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','three.min.js'
           ]
           for r in required: assert r in s, r
           forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'targetYaw']
@@ -113,6 +115,8 @@ jobs:
             if(!(c.straightSpeed>10&&c.turnSpeed>10&&c.speedRatio>.80&&c.turnHeading>.08&&c.turnSlip<.44&&c.turnYaw>.03&&c.earlySteer>.06&&c.minDriveForce>250&&c.releasedSlip<.36&&c.releasedYaw<c.turnYaw*.90))throw new Error('Corner drive response gate failed: '+JSON.stringify(c));
             const cs=await page.evaluate(()=>window.__polygonRush.testCounterSteerRecovery());
             if(!(cs.speed>10&&cs.reversed===true&&cs.afterSlip<.42))throw new Error('Counter-steer recovery regression: '+JSON.stringify(cs));
+            const am=await page.evaluate(()=>window.__polygonRush.testAccelerationMomentum());
+            if(!(am.speeds.length>=5&&am.speeds[2]>am.speeds[0]+2&&am.beforeLift>10&&am.stored>.45&&am.kept===true&&am.afterStored>.20))throw new Error('Acceleration momentum regression: '+JSON.stringify(am));
             const r=await page.evaluate(()=>window.__polygonRush.testBrakeRecovery());
             if(!(r.maxReverse<.02&&r.minLong>=-.02&&r.recovered>r.releaseSpeed+4&&r.recovered>6&&r.blendAfter<.03))throw new Error('Brake recovery regression: '+JSON.stringify(r));
             const a=await page.evaluate(()=>window.__polygonRush.testSteeringAcceleration());
@@ -127,7 +131,7 @@ jobs:
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.every(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.17 RELEASE GATE PASS',JSON.stringify({c,cs,r,a,g,collision,playerDrive,aiDistances}));
+            console.log('V15.5.17 RELEASE GATE PASS',JSON.stringify({c,cs,am,r,a,g,collision,playerDrive,aiDistances}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
