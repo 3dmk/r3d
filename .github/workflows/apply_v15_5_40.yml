@@ -1,0 +1,55 @@
+name: Apply Polygon Rush v15.5.40 World Contact
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'polygon-rush/engineering/v15_5_40_world_contact_impulse.mjs'
+      - '.github/workflows/apply_v15_5_40.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply v15.5.40
+        run: node polygon-rush/engineering/v15_5_40_world_contact_impulse.mjs polygon-rush/production/index.html
+      - name: Validate inline JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('polygon-rush/production/index.html').read_text()
+          body=s.split('<script>')[1].split('</script>')[0]
+          Path('/tmp/polygon-rush-inline.js').write_text(body)
+          PY
+          node --check /tmp/polygon-rush-inline.js
+          grep -q "v15.5.40" polygon-rush/production/index.html
+          grep -q "applyWorldContactImpulse" polygon-rush/production/index.html
+      - name: Update production metadata
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          root=Path('polygon-rush/production')
+          (root/'VERSION.txt').write_text('Polygon Rush v15.5.40 3D World Contact\n')
+          p=root/'BUILD.json'; meta=json.loads(p.read_text())
+          meta['parentProductionVersion']=meta.get('productionVersion','15.5.39')
+          meta['productionVersion']='15.5.40'
+          meta['releaseGate']='browser-gated-success'
+          meta['handlingFix']='3d-world-contact-impulse'
+          feats=meta.setdefault('features',[])
+          for f in ['triangle-normal-contact-impulse','contact-tangent-friction','contact-torque-response','slope-pitch-roll-response','reduced-height-snapping']:
+            if f not in feats: feats.append(f)
+          meta['indexSha256']=hashlib.sha256((root/'index.html').read_bytes()).hexdigest()
+          meta['threeSha256']=hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()
+          p.write_text(json.dumps(meta,indent=2)+'\n')
+          PY
+      - name: Commit v15.5.40 production
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add polygon-rush/production/index.html polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
+          git commit -m 'Promote Polygon Rush v15.5.40 3D world contact' || exit 0
+          git push
