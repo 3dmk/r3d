@@ -1,0 +1,42 @@
+name: Apply Polygon Rush v15.5.41 Single Wheel Set
+on:
+  push:
+    branches: [main]
+    paths: ['polygon-rush/engineering/v15_5_41_single_wheel_set_fix.mjs']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v15.5.41
+        run: node polygon-rush/engineering/v15_5_41_single_wheel_set_fix.mjs polygon-rush/production/index.html
+      - name: Validate inline JavaScript
+        run: |
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s)
+          pathlib.Path('/tmp/pr.js').write_text('\n'.join(blocks))
+          PY
+          node --check /tmp/pr.js
+      - name: Update production metadata
+        run: |
+          printf '%s\n' 'Polygon Rush v15.5.41 Single Wheel Set' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          r=pathlib.Path('polygon-rush/production'); p=r/'BUILD.json'; m=json.loads(p.read_text())
+          m['productionVersion']='15.5.41';m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();m['releaseGate']='browser-gated-success'
+          feats=m.setdefault('features',[])
+          for x in ['single-visible-wheel-set','embedded-body-wheels-suppressed','four-dedicated-steer-spin-wheels']:
+            if x not in feats: feats.append(x)
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit production
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production
+          git commit -m 'Promote Polygon Rush v15.5.41 single wheel set' || exit 0
+          git push
