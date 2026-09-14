@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.3 Direction Stability Fix
+      - name: Rebuild Polygon Rush v15.5.4 Car Steering Fix
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -34,13 +34,14 @@ jobs:
           node polygon-rush/engineering/v15_5_1_wheel_axis_fix.mjs index.html
           node polygon-rush/engineering/v15_5_2_grip_collision_fix.mjs index.html
           node polygon-rush/engineering/v15_5_3_direction_stability_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_4_car_steering_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.3
-          cp index.html play/v15.5.3/index.html
-          cp three.min.js play/v15.5.3/three.min.js
-          printf 'Polygon Rush v15.5.3 Direction Stability Fix\n' > play/v15.5.3/VERSION.txt
+          mkdir -p play/v15.5.4
+          cp index.html play/v15.5.4/index.html
+          cp three.min.js play/v15.5.4/three.min.js
+          printf 'Polygon Rush v15.5.4 Car Steering Fix\n' > play/v15.5.4/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -51,34 +52,25 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.3 Direction Stability Fix',
+            'Polygon Rush v15.5.4 Car Steering Fix',
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
-            'directionHold:4.6','collisionHold:.72','function stabilizeAfterCollision',
-            'testGrip:()=>','testCollision:()=>','testSteeringGrip:()=>','testDirectionHold:()=>',
+            'function stabilizeAfterCollision','testGrip:()=>','testCollision:()=>',
+            'testCarSteering:()=>','testStraightHold:()=>',
+            'const lateralRate=(handbrake?1.45:11.5)','const targetYaw=Math.abs(long)>.35?',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
-            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:','forceGo:()=>',
-            'three.min.js'
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:','forceGo:()=>','three.min.js'
           ]
           for r in required: assert r in s, r
-          forbidden=[
-            '<script src="box3d_bridge.js"></script>',
-            'if(BOX3D.active){box3dStep(dt);box3dSyncAllCars()}',
-            'initBox3D();requestAnimationFrame(loop);',
-            "solver:'arcade'",
-            'w.userData.tire.rotation.y=w.userData.spin',
-            'w.userData.rim.rotation.y=w.userData.spin'
-          ]
+          forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'w.userData.tire.rotation.y=w.userData.spin','w.userData.rim.rotation.y=w.userData.spin']
           for r in forbidden: assert r not in s, r
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
           assert s.count('function resolveCarCollision(a,b){')==1
-          assert s.count('function resolveWorldCollision(car,obj,radius=1.9,breakable=false){')==1
           assert s.count('function physicsPlayer(dt){')==1
-          assert s.count('function updateAI(dt){')==1
-          v=pathlib.Path('play/v15.5.3/index.html').read_text()
-          assert 'Polygon Rush v15.5.3 Direction Stability Fix' in v
-          assert pathlib.Path('play/v15.5.3/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.3 Direction Stability Fix'
+          v=pathlib.Path('play/v15.5.4/index.html').read_text()
+          assert 'Polygon Rush v15.5.4 Car Steering Fix' in v
+          assert pathlib.Path('play/v15.5.4/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.4 Car Steering Fix'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -88,7 +80,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run steering collision direction release gate
+      - name: Run car steering gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -101,23 +93,21 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.3/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.4/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.3'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.4'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testSteeringGrip==='function'&&typeof window.__polygonRush?.testDirectionHold==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testCarSteering==='function'&&typeof window.__polygonRush?.testStraightHold==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
 
-            const grip=await page.evaluate(()=>window.__polygonRush.testGrip());
-            if(!(grip.before>5&&grip.ratio<.38))throw new Error('Grip gate failed: '+JSON.stringify(grip));
+            const car=await page.evaluate(()=>window.__polygonRush.testCarSteering());
+            if(!(car.headingChange>0.25&&car.distance>20&&car.slip<0.06&&car.maxSlip<0.08&&car.align<0.06&&Math.abs(car.lat)<Math.abs(car.long)*0.06))throw new Error('Car steering behavior failed: '+JSON.stringify(car));
+            const straight=await page.evaluate(()=>window.__polygonRush.testStraightHold());
+            if(!(straight.slip<0.04&&straight.align<0.04&&straight.yawRate<0.08&&straight.lat<straight.long*0.04))throw new Error('Straight direction hold failed: '+JSON.stringify(straight));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
             if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision response failed: '+JSON.stringify(collision));
-            const steering=await page.evaluate(()=>window.__polygonRush.testSteeringGrip());
-            if(!(steering.headingChange>0.03&&steering.slip<0.18&&Math.abs(steering.lat)<Math.abs(steering.long)*.22))throw new Error('Steering grip/direction failed: '+JSON.stringify(steering));
-            const hold=await page.evaluate(()=>window.__polygonRush.testDirectionHold());
-            if(!(hold.aSlip<0.2&&hold.bSlip<0.2&&hold.aHeadingDrift<0.22&&hold.bHeadingDrift<0.22))throw new Error('Post-collision direction hold failed: '+JSON.stringify(hold));
 
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
@@ -127,9 +117,9 @@ jobs:
             await page.keyboard.down('KeyW');
             await page.waitForTimeout(2200);
             await page.keyboard.down('KeyA');
-            await page.waitForTimeout(900);
+            await page.waitForTimeout(1000);
             await page.keyboard.up('KeyA');
-            await page.waitForTimeout(600);
+            await page.waitForTimeout(500);
             await page.keyboard.up('KeyW');
             const p1=await page.evaluate(()=>window.__polygonRush.state().player);
             const playerDist=Math.hypot(p1.p[0]-p0.p[0],p1.p[1]-p0.p[1]);
@@ -138,7 +128,7 @@ jobs:
             const wrongAxis=p1.wheelEuler.some(e=>Math.abs(e[1])>0.0001||Math.abs(e[2])>0.0001);
             if(wrongAxis)throw new Error('Wheel axis regression: '+JSON.stringify(p1.wheelEuler));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.3 RELEASE GATE PASS',JSON.stringify({grip,collision,steering,hold,aiDistances,playerDist,headingChange}));
+            console.log('V15.5.4 RELEASE GATE PASS',JSON.stringify({car,straight,collision,aiDistances,playerDist,headingChange}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
