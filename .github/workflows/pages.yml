@@ -50,6 +50,7 @@ jobs:
           node polygon-rush/engineering/v15_5_15_brake_inertia_stability_fix.mjs index.html
           node polygon-rush/engineering/v15_5_16_brake_release_recovery_fix.mjs index.html
           node polygon-rush/engineering/v15_5_17_corner_drive_inertia_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_17_terrain_lightness_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
