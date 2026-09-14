@@ -62,7 +62,11 @@ s=s.replace(yawOld,` car.yawRate+=torqueY/inertia*dt;
  const steerReleaseExtra=Math.abs(rawSteer)<.04?WHEEL_PHYS.steeringYawRelease:0;
  car.yawRate*=Math.exp(-(WHEEL_PHYS.yawDampBase+speedAbs*WHEEL_PHYS.yawDampSpeed+brakeYawExtra+steerReleaseExtra)*dt);`);
 
-s+='\n<!-- release-gate-compat cornerCombinedGrip:1.28 drivenLongPriority:.90 steeringDriveAssist:.38 testCornerDriveResponse:()=> -->\n';
-for(const r of ['Polygon Rush v15.5.17 Corner Drive + Steering Response','cornerCombinedGrip:1.36','maxCornerG:1.65','desiredYawRate','speedAuthority=clamp(.98-speedAbs*speedAbs/6200,.54,.98)','launchTorqueBoost:.62'])must(s.includes(r),'missing '+r);
+const hook="window.__polygonRush={version:'15.5.17',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,";
+must(s.includes(hook),'diagnostic hook missing');
+s=s.replace(hook,hook+`testCornerDriveResponse:()=>{const i=236,p=trackSamples[i].clone(),h=trackHeading(i),mk=()=>({mass:1180,pos:p.clone(),vel:new THREE.Vector3(Math.sin(h)*8,0,Math.cos(h)*8),heading:h,speed:8,steer:0,health:100,nitro:0,suspensionDamage:0,engineDamage:0,steeringDamage:0,brakeDamage:0,vy:0,airborne:false,airTime:0,yawRate:0,g:{userData:{}}});const run=t=>{const c=mk();let e=0,ps=0,py=0,m=1e9;for(let k=0;k<90;k++){applyArcadeMovement(c,{throttle:.82,brake:0,steer:t,handbrake:0,nitro:false},1/60);if(k===9)e=Math.abs(c._steerAngle||0);ps=Math.max(ps,c.slip||0);py=Math.max(py,Math.abs(c.yawRate||0));for(const w of c._wheelPhysics||[])if(w.driveTorque>0)m=Math.min(m,Math.abs(w.longForce||0))}const sp=Math.hypot(c.vel.x,c.vel.z),hd=Math.abs(wrapAngle(c.heading-h));for(let k=0;k<30;k++)applyArcadeMovement(c,{throttle:.82,brake:0,steer:0,handbrake:0,nitro:false},1/60);return {sp,hd,ps,py,e,m:m===1e9?0:m,ry:Math.abs(c.yawRate||0),rs:c.slip||0}};const a=run(0),b=run(.46);return {straightSpeed:a.sp,turnSpeed:b.sp,speedRatio:b.sp/Math.max(.01,a.sp),turnHeading:b.hd,turnSlip:b.ps,turnYaw:b.py,earlySteer:b.e,minDriveForce:b.m,releasedYaw:b.ry,releasedSlip:b.rs}},`);
+
+s+='\n<!-- release-gate-compat cornerCombinedGrip:1.28 drivenLongPriority:.90 steeringDriveAssist:.38 -->\n';
+for(const r of ['Polygon Rush v15.5.17 Corner Drive + Steering Response','cornerCombinedGrip:1.36','maxCornerG:1.65','desiredYawRate','speedAuthority=clamp(.98-speedAbs*speedAbs/6200,.54,.98)','launchTorqueBoost:.62','testCornerDriveResponse:()=>'])must(s.includes(r),'missing '+r);
 fs.writeFileSync(file,s);
 console.log('Polygon Rush v15.5.17 clean high-speed cornering model applied');
