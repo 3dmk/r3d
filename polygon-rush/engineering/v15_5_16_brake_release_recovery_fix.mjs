@@ -7,6 +7,11 @@ s=s.replaceAll('Polygon Rush v15.5.15 Brake Inertia Stability','Polygon Rush v15
 s=s.replaceAll('v15.5.15 • BRAKE INERTIA STABILITY','v15.5.16 • BRAKE RELEASE + RECOVERY');
 s=s.replaceAll("version:'15.5.15'","version:'15.5.16'");
 
+// Compatibility handoff for the v15.5.17 corner-drive patch. v15.5.12 introduced
+// the 1.00/3200 authority form, while v15.5.17 still consumes the earlier anchor
+// before replacing it with its final high-speed authority model.
+s=s.replace('const speedAuthority=clamp(1.00-speedAbs*speedAbs/3200,.34,1.00);','const speedAuthority=clamp(.96-speedAbs*speedAbs/2100,.24,.96);');
+
 s=s.replace(
  'brakeSteerBleed:.46, brakeLatDamp:3.2, brakeYawDamp:1.65, brakeMinDecel:1.15,',
  'brakeSteerBleed:.46, brakeLatDamp:3.2, brakeYawDamp:1.65, brakeMinDecel:1.15, brakeMaxDecel:8.2, brakeFadeStart:3.0, brakeStopSpeed:.42, brakeApplyRate:12.0, brakeReleaseRate:20.0,'
