@@ -61,7 +61,7 @@ jobs:
             'testNaturalDynamics:()=>','testCornerInertia:()=>','testWeightedDrive:()=>','testDriveFriction:()=>',
             'massRef:1180','loadTransfer:.18','steerInertia:.76','velocityAlign:6.4','highSpeedGrip:.58',
             'const effectiveMass=clamp(car.mass||WHEEL_PHYS.mass,760,2200)',
-            'const speedSteer=clamp(1.06-(speedAbs*speedAbs)/5200,.34,1)',
+            'const speedSteer=clamp(1.04-(speedAbs*speedAbs)/2200,.28,1)',
             'const cornerAccel=-long*car.yawRate',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
