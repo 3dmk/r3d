@@ -1,0 +1,46 @@
+name: Apply Polygon Rush v16.0.2 Wheel Chassis Balance
+on:
+  push:
+    branches: [main]
+    paths: ['polygon-rush/engineering/v16_0_2_wheel_chassis_balance.mjs']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v16.0.2
+        run: node polygon-rush/engineering/v16_0_2_wheel_chassis_balance.mjs polygon-rush/production/index.html
+      - name: Validate clean runtime
+        run: |
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          assert "v16.0.2" in s
+          assert "wheelRadius:.47" in s
+          assert "mass:980" in s
+          assert "springK:25500" in s
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s)
+          pathlib.Path('/tmp/pr.mjs').write_text('\n'.join(blocks))
+          PY
+          node --check /tmp/pr.mjs
+      - name: Update production metadata
+        run: |
+          printf '%s\n' 'Polygon Rush v16.0.2 Wheel + Chassis Balance' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          r=pathlib.Path('polygon-rush/production'); p=r/'BUILD.json'; m=json.loads(p.read_text())
+          m['productionVersion']='16.0.2';m['parentProductionVersion']='16.0.1';m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();m['releaseGate']='clean-core-static-validated'
+          feats=m.setdefault('features',[])
+          for x in ['larger-0.47m-wheels','lighter-980kg-chassis','lower-rotational-inertia','retuned-suspension','reduced-drag-load']:
+            if x not in feats: feats.append(x)
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit production
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production
+          git commit -m 'Promote Polygon Rush v16.0.2 wheel chassis balance' || exit 0
+          git push
