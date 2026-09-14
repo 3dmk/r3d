@@ -1,54 +1,89 @@
-name: Deploy Polygon Rush Production
+name: Promote Polygon Rush v15.5.36
 on:
   push:
     branches: [main]
     paths:
-      - 'polygon-rush/production/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  deploy:
+  promote:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate committed production snapshot
+      - name: Vendor corrected car kit and clean props
         run: |
           set -euo pipefail
-          test -f polygon-rush/production/index.html
-          test -f polygon-rush/production/three.min.js
-          test -f polygon-rush/production/VERSION.txt
-          test -f polygon-rush/production/BUILD.json
-          test -f polygon-rush/production/_headers
-          test -f polygon-rush/production/assets/models/player_car.glb
-          test -f polygon-rush/production/assets/models/tree_pine.glb
-          test -f polygon-rush/production/vendor/GLTFLoader.js
+          ROOT=polygon-rush/production/assets/models
+          mkdir -p "$ROOT/Textures"
+          BASE='https://raw.githubusercontent.com/Arslan12216775/kenney_car-kit/master/Models/GLB%20format'
+          curl -fsSL "$BASE/race.glb" -o "$ROOT/player_body.glb"
+          curl -fsSL "$BASE/wheel-racing.glb" -o "$ROOT/player_wheel.glb"
+          curl -fsSL "$BASE/cone.glb" -o "$ROOT/traffic_cone.glb"
+          curl -fsSL "$BASE/box.glb" -o "$ROOT/cargo_box.glb"
+          curl -fsSL "$BASE/Textures/colormap.png" -o "$ROOT/Textures/colormap.png"
+          CBASE='https://raw.githubusercontent.com/Arslan12216775/kenney_car-kit/master/Models/City'
+          curl -fsSL "$CBASE/building-type-a.glb" -o "$ROOT/city_building_a.glb"
+          curl -fsSL "$CBASE/building-type-b.glb" -o "$ROOT/city_building_b.glb"
+          curl -fsSL "$CBASE/building-type-c.glb" -o "$ROOT/city_building_c.glb"
+          curl -fsSL "$CBASE/fence.glb" -o "$ROOT/city_fence.glb"
+          for f in player_body player_wheel traffic_cone cargo_box city_building_a city_building_b city_building_c city_fence; do test $(stat -c%s "$ROOT/$f.glb") -gt 10000; done
+      - name: Apply v15.5.36 corrected asset integration
+        run: node polygon-rush/engineering/v15_5_36_asset_orientation_wheel_fix.mjs polygon-rush/production/index.html
+      - name: Validate JavaScript syntax
+        run: |
           python3 - <<'PY'
-          import json, pathlib, hashlib
-          root=pathlib.Path('polygon-rush/production')
-          meta=json.loads((root/'BUILD.json').read_text())
-          assert meta['deploymentModel']=='committed-static-production'
-          assert meta['releaseGate']=='browser-gated-success'
-          assert meta['developmentScope']=='free-roam-only'
-          assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
-          assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
-          assert (root/'index.html').stat().st_size > 50000
-          assert (root/'three.min.js').stat().st_size > 500000
-          print('Polygon Rush static production validation PASS', meta['productionVersion'])
+          from pathlib import Path
+          import re
+          s=Path('polygon-rush/production/index.html').read_text()
+          Path('/tmp/pr-inline.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)))
           PY
+          node --check /tmp/pr-inline.js
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Browser orientation and wheel release gate
+        run: |
+          python3 -m http.server 4173 --directory polygon-rush/production >/tmp/pr-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          cat >/tmp/v15536.cjs <<'JS'
+          const {chromium}=require(process.cwd()+'/node_modules/playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}}),errs=[];p.on('pageerror',e=>errs.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);await p.click('#start');await p.waitForFunction(()=>window.__polygonRush?.version==='15.5.36'&&window.__polygonRush?.startOk===true);await p.waitForFunction(()=>window.__polygonRush?.realAssets?.().ready===true,{timeout:20000});const r=await p.evaluate(()=>({a:window.__polygonRush.realAssets(),g:window.__polygonRush.assetGeometry(),m:window.__polygonRush.modeState(),acc:window.__polygonRush.testAccelerationResponse()}));if(r.a.failed.length||!r.a.car||r.a.count<35||r.g.wheelCount!==4||r.g.frontWheels!==2||!r.g.bodyForwardLong||r.g.bodySize[2]<3.5||!r.m.freeRoamMode||r.m.aiCount!==0||r.acc.v1<7.5||r.acc.v2<16)throw new Error('v15.5.36 gate '+JSON.stringify(r));if(errs.length)throw new Error(errs.join(' | '));console.log('V15.5.36 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/v15536.cjs
+      - name: Finalize production metadata
+        run: |
+          printf 'Polygon Rush v15.5.36 Asset Orientation + Car Art\n' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          r=pathlib.Path('polygon-rush/production');m=json.loads((r/'BUILD.json').read_text())
+          m['productionVersion']='15.5.36';m['parentProductionVersion']='15.5.35';m['releaseGate']='browser-gated-success';m['deploymentModel']='committed-static-production';m['developmentScope']='free-roam-only'
+          m['features']=list(dict.fromkeys(m.get('features',[])+['normalized-asset-origins','corrected-model-orientation','separate-race-body','explicit-racing-wheel-meshes','wheel-steer-pivots','wheel-spin-axle-pivots','kenney-car-kit-texture-atlas','individual-scene-props']))
+          m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();(r/'BUILD.json').write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit certified production snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polygon-rush/production polygon-rush/engineering/v15_5_36_asset_orientation_wheel_fix.mjs
+          git commit -m "Promote Polygon Rush v15.5.36 corrected Free Roam assets [skip ci]"
+          git push origin HEAD:main
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy committed production to GitHub Pages root
+      - name: Deploy v15.5.36 to root site
         id: deployment
         uses: actions/deploy-pages@v4
