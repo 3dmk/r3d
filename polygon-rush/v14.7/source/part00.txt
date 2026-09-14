@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Polygon Rush v14.7 Corner Physics</title>
+<style>
+:root{--panel:#07111cdd;--line:#ffffff20;--text:#f6fbff;--muted:#9fb0c0;--accent:#72e6a6}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05080d;color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}canvas{display:block}button,select{font:inherit}button,select{background:#12202d;color:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 11px}.panel{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);border-radius:15px;box-shadow:0 18px 60px #0008}#menu{position:fixed;z-index:20;left:14px;top:14px;width:min(420px,calc(100vw - 28px));padding:15px}.title{font-size:30px;font-weight:950;letter-spacing:-.05em}.sub{font-size:11px;color:var(--muted);margin:3px 0 13px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px}.row{display:flex;gap:8px;margin-top:12px}.primary{background:linear-gradient(135deg,#72e6a6,#62cfff);color:#07120c;border:0;font-weight:900}.tiny{font-size:10px;color:var(--muted);line-height:1.5;margin-top:12px}#hud{position:fixed;z-index:10;left:10px;right:10px;top:10px;display:none;justify-content:space-between;gap:6px;pointer-events:none}.hud{background:#050a0fcc;border:1px solid var(--line);padding:6px 9px;border-radius:10px;min-width:90px}.hl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}.hv{font-size:21px;font-weight:950}#msg{position:fixed;z-index:12;left:50%;top:36%;transform:translate(-50%,-50%);font-size:42px;font-weight:950;text-shadow:0 7px 24px #000;pointer-events:none}#debugBtn{position:fixed;z-index:30;right:10px;bottom:10px;background:#ffd166;color:#1a1200;font-weight:900}#debug{position:fixed;z-index:29;right:10px;bottom:52px;width:min(430px,calc(100vw - 20px));max-height:55vh;overflow:auto;padding:11px;background:#050a0ff4;border:1px solid var(--line);border-radius:12px;display:none;font:11px/1.5 Consolas,monospace;white-space:pre-wrap}#debug.open{display:block}#pause{position:fixed;z-index:25;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px;display:none}.bad{color:#ff8d8d}.good{color:#7cf2aa}@media(max-width:700px){#menu{left:7px;top:7px;width:calc(100vw - 14px)}.hv{font-size:15px}.hud{min-width:0;padding:5px}.title{font-size:25px}}
+</style>
+</head><body>
+<div id="game"></div>
+<div id="hud"><div class="hud"><div class="hl">Position</div><div class="hv"><span id="pos">1</span>/5</div></div><div class="hud"><div class="hl">Lap</div><div class="hv"><span id="lap">1</span>/3</div></div><div class="hud"><div class="hl">Speed</div><div class="hv"><span id="speed">0</span> <small>km/h</small></div></div><div class="hud"><div class="hl">Gear</div><div class="hv" id="gear">N</div></div><div class="hud"><div class="hl">Surface</div><div class="hv" id="surface">ROAD</div></div><div class="hud"><div class="hl">Suspension</div><div class="hv" id="susp">100%</div></div><div class="hud"><div class="hl">Traction</div><div class="hv" id="traction">GRIP</div></div><div class="hud"><div class="hl">Nitro</div><div class="hv" id="nitroHud">100%</div></div><div class="hud"><div class="hl">Health</div><div class="hv" id="healthHud">100%</div></div><div class="hud"><div class="hl">Gate</div><div class="hv" id="gateHud">START</div></div><div class="hud"><div class="hl">Slip</div><div class="hv" id="slipHud">0°</div></div><div class="hud"><div class="hl">Yaw</div><div class="hv" id="yawHud">0.0</div></div><div class="hud"><div class="hl">Air</div><div class="hv" id="airHud">GROUND</div></div><div class="hud"><div class="hl">Physics</div><div class="hv" id="box3dHud">ARCADE</div></div></div>
+<div id="msg"></div><div id="raceBanner" style="position:fixed;z-index:13;left:50%;top:18%;transform:translateX(-50%);font-size:18px;font-weight:900;text-shadow:0 4px 14px #000;pointer-events:none"></div>
+<div id="menu" class="panel"><div class="title">POLYGON RUSH</div><div class="sub">v14.7 • CORNER ACCEL + YAW RESPONSE</div><div class="grid"><label>World<select id="track"><option value="coast">Azure Coast</option><option value="forest">Pine Summit</option><option value="canyon">Canyon Foundry</option><option value="neon">Neon Harbor</option><option value="alpine">Alpine Skyway</option></select></label><label>Handling<select id="handling"><option value="arcade">Arcade</option><option value="grippy">Grippy</option><option value="drift">Drift</option></select></label></div><div class="row"><button id="start" class="primary" style="flex:1">START RACE</button><button id="preview">PREVIEW</button></div><div class="tiny"><b>Controls:</b> W / ↑ throttle • S / ↓ brake + reverse • A/D or ←/→ steer • Space handbrake/drift • Shift nitro • R recover • Esc pause • F3 debug.<br><br><span class="good">Player car is free-physics controlled.</span> Box3D WebAssembly is now bundled and active: Box3D owns 3D rigid-body motion and collision response while the arcade controller supplies throttle, brake, steering, handbrake and nitro intent.</div></div>
+<div id="pause" class="panel"><b>PAUSED</b><div class="row"><button id="resume" class="primary">RESUME</button><button id="quit">QUIT</button></div></div>
+<button id="debugBtn">DEBUG F3</button><div id="debug"></div>
+<script src="polygon-rush-v14.6-box3d-wasm.js"></script>
+<script src="polygon-rush-v14.6-box3d-bridge.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js"></script>
+<script>
+(()=>{'use strict';
+const $=s=>document.querySelector(s),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),TAU=Math.PI*2;
+if(!window.THREE){document.body.innerHTML='<div style="padding:40px;color:white">Three.js failed to load. Reload with internet enabled.</div>';return}
+const zones={coast:{sky:0x8dcde1,ground:0x73ad71,road:0x343c42,accent:0xffd166},forest:{sky:0x88b5c6,ground:0x4d774d,road:0x343a3d,accent:0xffbd5c},canyon:{sky:0xdabf99,ground:0xc7834d,road:0x443e39,accent:0x6ce0d6},neon:{sky:0x17263c,ground:0x243341,road:0x1a2027,accent:0xff5fd2},alpine:{sky:0xaed2e0,ground:0xb8c5c9,road:0x394147,accent:0xff716b}};
+const scene=new THREE.Scene(),world=new THREE.Group(),carsG=new THREE.Group(),fxG=new THREE.Group();scene.add(world,carsG,fxG);
+const dustParticles=[],skidMarks=[],destructibles=[];
+function spawnSkid(pos,heading,intensity=1,color=0x211b18){
+ if(skidMarks.length>260)return;
+ const g=new THREE.PlaneGeometry(.22+intensity*.12,.8+intensity*.6),
+       m=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.34,depthWrite:false,side:THREE.DoubleSide}),
+       q=new THREE.Mesh(g,m);
+ q.rotation.x=-Math.PI/2;q.rotation.z=-heading;q.position.copy(pos);q.position.y+=.012;
+ q.userData.life=3.8;fxG.add(q);skidMarks.push(q)
+}
+function updateSkids(dt){
+ for(let i=skidMarks.length-1;i>=0;i--){
+  const q=skidMarks[i];q.userData.life-=dt;q.material.opacity=Math.max(0,q.userData.life*.09);
+  if(q.userData.life<=0){fxG.remove(q);q.geometry.dispose();q.material.dispose();skidMarks.splice(i,1)}
+ }
+}
+const exhaustPuffs=[];
+function spawnExhaust(car){
+ const f=new THREE.Vector3(Math.sin(car.heading),0,Math.cos(car.heading)),
+       r=new THREE.Vector3(f.z,0,-f.x),
+       mat=new THREE.MeshBasicMaterial({color:0x8e949a,transparent:true,opacity:.22,depthWrite:false}),
+       p=new THREE.Mesh(new THREE.SphereGeometry(.10+Math.random()*.08,6,4),mat);
+ p.position.copy(car.pos).addScaledVector(f,-2.25).addScaledVector(r,.45);p.position.y+=.75;
+ p.userData.life=.35+Math.random()*.25;p.userData.vel=f.clone().multiplyScalar(-1.5).add(new THREE.Vector3(0,.55,0));
+ fxG.add(p);exhaustPuffs.push(p)
+}
+function updateExhaust(dt){
+ for(let i=exhaustPuffs.length-1;i>=0;i--){
+  const p=exhaustPuffs[i];p.userData.life-=dt;p.position.addScaledVector(p.userData.vel,dt);p.scale.multiplyScalar(1+dt*2.2);p.material.opacity=Math.max(0,p.userData.life*.35);
+  if(p.userData.life<=0){fxG.remove(p);p.geometry.dispose();p.material.dispose();exhaustPuffs.splice(i,1)}
+ }
+}
+
+function spawnDust(pos,vel,intensity=1){
+ if(dustParticles.length>180)return;
+ const mat=new THREE.MeshBasicMaterial({color:0xb89a70,transparent:true,opacity:.32,depthWrite:false}),
+       p=new THREE.Mesh(new THREE.SphereGeometry(.18+Math.random()*.18,6,4),mat);
+ p.position.copy(pos);p.position.y+=.15;p.scale.setScalar(.8+Math.random()*.8);
+ p.userData.life=.45+Math.random()*.55;p.userData.vel=vel.clone().multiplyScalar(-.08).add(new THREE.Vector3((Math.random()-.5)*1.5,1.0+Math.random(),(Math.random()-.5)*1.5));
+ fxG.add(p);dustParticles.push(p)
+}
+function updateDust(dt){
+ for(let i=dustParticles.length-1;i>=0;i--){
+  const p=dustParticles[i];p.userData.life-=dt;p.position.addScaledVector(p.userData.vel,dt);p.userData.vel.y+=.6*dt;
+  p.scale.multiplyScalar(1+dt*1.9);p.material.opacity=Math.max(0,p.userData.life*.45);
+  if(p.userData.life<=0){fxG.remove(p);p.geometry.dispose();p.material.dispose();dustParticles.splice(i,1)}
+ }
+}
+
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$('#game').appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xeaf8ff,0x3a3028,1.65));const sun=new THREE.DirectionalLight(0xfff0cf,3.1);sun.position.set(-65,110,50);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-170;sun.shadow.camera.right=170;sun.shadow.camera.top=170;sun.shadow.camera.bottom=-170;scene.add(sun);
+const cam=new THREE.PerspectiveCamera(63,innerWidth/innerHeight,.1,1000);
+let curve,trackSamples=[],running=false,paused=false,last=per
