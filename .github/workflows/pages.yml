@@ -1,17 +1,20 @@
-name: Promote and Deploy Polygon Rush Production
+name: Deploy Polygon Rush Production
 on:
   push:
     branches: [main]
+    paths:
+      - 'polygon-rush/production/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  promote:
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -19,69 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Recover last browser-gated successful production artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/polygon-rush-promote
-          mkdir -p /tmp/polygon-rush-promote
-          cd /tmp/polygon-rush-promote
-          curl --fail --silent --show-error --location \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/10340434446/zip \
-            -o artifact.zip
-          unzip -q artifact.zip
-          mkdir site
-          tar -xf artifact.tar -C site
-          test -s site/play/v15.5.17/index.html
-          test -s site/play/v15.5.17/three.min.js
-          test -s site/play/v15.5.17/VERSION.txt
-          printf '%s  %s\n' \
-            '7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117' \
-            'site/play/v15.5.17/index.html' | sha256sum -c -
-          printf '%s  %s\n' \
-            '218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39' \
-            'site/play/v15.5.17/three.min.js' | sha256sum -c -
-
-      - name: Promote immutable files into polygon-rush production
-        run: |
-          set -euo pipefail
-          cp /tmp/polygon-rush-promote/site/play/v15.5.17/index.html polygon-rush/production/index.html
-          cp /tmp/polygon-rush-promote/site/play/v15.5.17/three.min.js polygon-rush/production/three.min.js
-          cp /tmp/polygon-rush-promote/site/play/v15.5.17/VERSION.txt polygon-rush/production/VERSION.txt
-          cat > polygon-rush/production/BUILD.json <<'JSON'
-          {
-            "schema": 1,
-            "product": "Polygon Rush",
-            "productionVersion": "15.5.17",
-            "sourceWorkflowRun": 34827164756,
-            "sourceWorkflowRunNumber": 220,
-            "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
-            "sourceArtifactId": 10340434446,
-            "releaseGate": "browser-gated-success",
-            "indexSha256": "7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117",
-            "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
-            "deploymentModel": "committed-static-production"
-          }
-          JSON
-          test "$(wc -c < polygon-rush/production/index.html)" -eq 84903
-          test "$(wc -c < polygon-rush/production/three.min.js)" -eq 633338
-          grep -q "Polygon Rush" polygon-rush/production/index.html
-
-      - name: Commit production snapshot
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add polygon-rush/production/index.html polygon-rush/production/three.min.js polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Promote verified Polygon Rush production snapshot [skip ci]"
-            git push origin HEAD:main
-          fi
-
-      - name: Validate static hosting target
+      - name: Validate committed production snapshot
         run: |
           set -euo pipefail
           test -f polygon-rush/production/index.html
@@ -93,15 +34,19 @@ jobs:
           import json, pathlib, hashlib
           root=pathlib.Path('polygon-rush/production')
           meta=json.loads((root/'BUILD.json').read_text())
+          assert meta['deploymentModel']=='committed-static-production'
           assert meta['releaseGate']=='browser-gated-success'
           assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
           assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
+          assert (root/'index.html').stat().st_size > 50000
+          assert (root/'three.min.js').stat().st_size > 500000
+          print('Polygon Rush static production validation PASS', meta['productionVersion'])
           PY
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy static production to GitHub Pages
+      - name: Deploy committed production to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
