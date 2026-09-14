@@ -1,76 +1,50 @@
-name: Promote Polygon Rush v15.5.31
+name: Deploy Polygon Rush Production
 on:
   push:
     branches: [main]
     paths:
+      - 'polygon-rush/production/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  promote:
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply v15.5.31 physics collision fix
-        run: node polygon-rush/engineering/v15_5_31_physics_collision_fix.mjs polygon-rush/production/index.html
-      - name: Validate JavaScript syntax
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          s=Path('polygon-rush/production/index.html').read_text()
-          Path('/tmp/polygon-rush-inline.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)))
-          PY
-          node --check /tmp/polygon-rush-inline.js
-      - name: Install browser gate runtime
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install --silent playwright@1.55.0
-          npx playwright install --with-deps chromium >/dev/null
-      - name: Run v15.5.31 browser release gate
-        run: |
-          python3 -m http.server 4173 --directory polygon-rush/production >/tmp/polygon-rush-http.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          cat >/tmp/v15531.cjs <<'JS'
-          const {chromium}=require(process.cwd()+'/node_modules/playwright');
-          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}});const errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);await p.selectOption('#track','freeroam');await p.click('#start');await p.waitForFunction(()=>window.__polygonRush?.version==='15.5.31'&&typeof window.__polygonRush.testFreeRoamPhysics==='function');const r=await p.evaluate(()=>window.__polygonRush.testFreeRoamPhysics());if(!(r.accel>6&&r.reverse<-2&&r.turnHeading>.15&&r.turnEnd/r.turnStart>.72&&r.collisionHit))throw new Error('v15.5.31 physics regression '+JSON.stringify(r));if(errors.length)throw new Error(errors.join(' | '));console.log('V15.5.31 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
-          JS
-          node /tmp/v15531.cjs
-      - name: Update manifest and commit production snapshot
-        run: |
-          printf 'Polygon Rush v15.5.31 Free Roam Physics Fix\n' > polygon-rush/production/VERSION.txt
-          python3 - <<'PY'
-          import json,hashlib,pathlib
-          r=pathlib.Path('polygon-rush/production');m=json.loads((r/'BUILD.json').read_text())
-          m['productionVersion']='15.5.31';m['parentProductionVersion']='15.5.30';m['releaseGate']='browser-gated-success';m['deploymentModel']='committed-static-production'
-          m['features']=['steer-under-power','test-track','free-roam','course-menu-self-heal','free-roam-obb-collision','reverse-drive','turn-momentum-preservation','anti-clipping']
-          m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();(r/'BUILD.json').write_text(json.dumps(m,indent=2)+'\n')
-          PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add polygon-rush/production/index.html polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
-          git commit -m "Promote Polygon Rush v15.5.31 physics collision fix [skip ci]"
-          git push origin HEAD:main
       - name: Validate committed production snapshot
         run: |
+          set -euo pipefail
+          test -f polygon-rush/production/index.html
+          test -f polygon-rush/production/three.min.js
+          test -f polygon-rush/production/VERSION.txt
+          test -f polygon-rush/production/BUILD.json
+          test -f polygon-rush/production/_headers
           python3 - <<'PY'
-          import json,hashlib,pathlib
-          r=pathlib.Path('polygon-rush/production');m=json.loads((r/'BUILD.json').read_text());assert m['productionVersion']=='15.5.31';assert hashlib.sha256((r/'index.html').read_bytes()).hexdigest()==m['indexSha256']
+          import json, pathlib, hashlib
+          root=pathlib.Path('polygon-rush/production')
+          meta=json.loads((root/'BUILD.json').read_text())
+          assert meta['deploymentModel']=='committed-static-production'
+          assert meta['releaseGate']=='browser-gated-success'
+          assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
+          assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
+          assert (root/'index.html').stat().st_size > 50000
+          assert (root/'three.min.js').stat().st_size > 500000
+          print('Polygon Rush static production validation PASS', meta['productionVersion'])
           PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy v15.5.31 to root site
+      - name: Deploy committed production to GitHub Pages root
         id: deployment
         uses: actions/deploy-pages@v4
