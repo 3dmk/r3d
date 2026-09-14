@@ -1,4 +1,5 @@
 name: Promote Polygon Rush v15.5.33
+# retry after diagnostic anchor correction
 on:
   push:
     branches: [main]
@@ -43,7 +44,7 @@ jobs:
           trap 'kill $SERVER_PID || true' EXIT
           cat >/tmp/v15533.cjs <<'JS'
           const {chromium}=require(process.cwd()+'/node_modules/playwright');
-          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}});const errs=[];p.on('pageerror',e=>errs.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);const r=await p.evaluate(()=>window.__polygonRush.testAccelerationResponse());if(!(r.v1>7.5&&r.v2>16&&r.cornerEnd>r.cornerStart*.90&&r.heading>.10))throw new Error('acceleration regression '+JSON.stringify(r));if(errs.length)throw new Error(errs.join(' | '));console.log('V15.5.33 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}});const errs=[];p.on('pageerror',e=>errs.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);await p.selectOption('#track','freeroam');await p.click('#start');await p.waitForFunction(()=>window.__polygonRush?.version==='15.5.33'&&typeof window.__polygonRush.testAccelerationResponse==='function');const r=await p.evaluate(()=>window.__polygonRush.testAccelerationResponse());if(!(r.v1>7.5&&r.v2>16&&r.cornerEnd>r.cornerStart*.90&&r.heading>.10))throw new Error('acceleration regression '+JSON.stringify(r));if(errs.length)throw new Error(errs.join(' | '));console.log('V15.5.33 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
           JS
           node /tmp/v15533.cjs
       - name: Finalize production metadata
