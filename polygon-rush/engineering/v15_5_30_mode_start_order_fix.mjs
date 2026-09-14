@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const file=process.argv[2]||'polygon-rush/production/index.html';
+let s=fs.readFileSync(file,'utf8');
+const early="spawn();if(testMode||freeRoamMode){for(const ai of ais){if(ai?.g)carsG.remove(ai.g)}ais=[];}if(freeRoamMode&&player){";
+if(!s.includes(early))throw new Error('early AI removal anchor missing');
+s=s.replace(early,"spawn();if(freeRoamMode&&player){",1);
+const gate="if(!player||ais.length!==4)throw new Error('START invariant failed: expected 1 player + 4 opponents');";
+if(!s.includes(gate))throw new Error('start invariant anchor missing');
+s=s.replace(gate,gate+"\n  if(testMode||freeRoamMode){for(const ai of ais){if(ai?.g)carsG.remove(ai.g)}ais=[];}",1);
+fs.writeFileSync(file,s);
+console.log('v15.5.30 mode start ordering fixed');
