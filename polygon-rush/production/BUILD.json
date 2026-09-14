@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.40",
+  "productionVersion": "15.5.41",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "5bd39d28c427f6085c2f09ebd0e50eb1f374cab8eece127957fc4398c9a4b898",
+  "indexSha256": "9b47e41bce4314b892c98e09cf43952bebaa0fd3ac7a22d79893126262f7403f",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
   "parentProductionVersion": "15.5.39",
@@ -69,7 +69,9 @@
     "contact-tangent-friction",
     "contact-torque-response",
     "slope-pitch-roll-response",
-    "reduced-height-snapping"
+    "reduced-height-snapping",
+    "embedded-body-wheels-suppressed",
+    "four-dedicated-steer-spin-wheels"
   ],
   "developmentScope": "free-roam-only"
 }
