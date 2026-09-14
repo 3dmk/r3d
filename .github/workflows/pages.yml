@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.16 Brake Release + Recovery
+      - name: Rebuild Polygon Rush v15.5.17 Corner Drive + Steering Response
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -49,13 +49,14 @@ jobs:
           node polygon-rush/engineering/v15_5_14_steering_acceleration_fix.mjs index.html
           node polygon-rush/engineering/v15_5_15_brake_inertia_stability_fix.mjs index.html
           node polygon-rush/engineering/v15_5_16_brake_release_recovery_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_17_corner_drive_inertia_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.16
-          cp index.html play/v15.5.16/index.html
-          cp three.min.js play/v15.5.16/three.min.js
-          printf 'Polygon Rush v15.5.16 Brake Release + Recovery\n' > play/v15.5.16/VERSION.txt
+          mkdir -p play/v15.5.17
+          cp index.html play/v15.5.17/index.html
+          cp three.min.js play/v15.5.17/three.min.js
+          printf 'Polygon Rush v15.5.17 Corner Drive + Steering Response\n' > play/v15.5.17/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -66,17 +67,17 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.16 Brake Release + Recovery','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
-            'testSteeringAcceleration:()=>','testBrakeInertia:()=>','testBrakeRecovery:()=>','testGripCornering:()=>','testCollision:()=>','testAI:',
-            'brakeMaxDecel:8.2','brakeFadeStart:3.0','brakeStopSpeed:.42','brakeApplyRate:12.0','brakeReleaseRate:20.0',
-            'wheelBrakeFade','minPower','brakeBlend:brake','cornerCombinedGrip:1.16','drivenLongPriority:.82',
+            'Polygon Rush v15.5.17 Corner Drive + Steering Response','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
+            'testSteeringAcceleration:()=>','testBrakeRecovery:()=>','testCornerDriveResponse:()=>','testGripCornering:()=>','testCollision:()=>','testAI:',
+            'yawInertiaScale:1.12','cornerCombinedGrip:1.28','drivenLongPriority:.90','steeringDriveAssist:.38','steeringYawRelease:2.4',
+            'rackRate=12.6','requestedLong','reservedLong','brakeMaxDecel:8.2','brakeReleaseRate:20.0',
             'Physics backend: WHEEL PHYSICS','wheelPhysics:true','three.min.js'
           ]
           for r in required: assert r in s, r
           forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'targetYaw']
           for r in forbidden: assert r not in s, r
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
-          assert pathlib.Path('play/v15.5.16/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.16 Brake Release + Recovery'
+          assert pathlib.Path('play/v15.5.17/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.17 Corner Drive + Steering Response'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -86,7 +87,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run brake release recovery gameplay release gate
+      - name: Run corner drive steering response gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -99,29 +100,29 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.16/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.17/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.16'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.17'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>typeof window.__polygonRush?.testBrakeRecovery==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>typeof window.__polygonRush?.testCornerDriveResponse==='function',null,{timeout:5000});
+            const c=await page.evaluate(()=>window.__polygonRush.testCornerDriveResponse());
+            if(!(c.straightSpeed>10&&c.turnSpeed>10&&c.speedRatio>.80&&c.turnHeading>.08&&c.turnSlip<.44&&c.turnYaw>.03&&c.earlySteer>.06&&c.minDriveForce>250&&c.releasedSlip<.36&&c.releasedYaw<c.turnYaw*.90))throw new Error('Corner drive response gate failed: '+JSON.stringify(c));
             const r=await page.evaluate(()=>window.__polygonRush.testBrakeRecovery());
-            if(!(r.maxReverse<.02&&r.minLong>=-.02&&r.recovered>r.releaseSpeed+4&&r.recovered>6&&r.blendAfter<.03))throw new Error('Brake recovery gate failed: '+JSON.stringify(r));
-            const b=await page.evaluate(()=>window.__polygonRush.testBrakeInertia());
-            if(!(b.straightRise<.04&&b.cornerRise<.05&&b.cornerSlip<.42&&b.cornerYaw<1.4))throw new Error('Brake inertia regression: '+JSON.stringify(b));
+            if(!(r.maxReverse<.02&&r.minLong>=-.02&&r.recovered>r.releaseSpeed+4&&r.recovered>6&&r.blendAfter<.03))throw new Error('Brake recovery regression: '+JSON.stringify(r));
             const a=await page.evaluate(()=>window.__polygonRush.testSteeringAcceleration());
-            if(!(a.straightSpeed>10&&a.turnSpeed>10&&a.speedRatio>.72&&a.turnLong>8&&a.turnSlip<.44&&a.maxDriveSlip<.46&&a.minDriveForce>250))throw new Error('Steering acceleration regression: '+JSON.stringify(a));
+            if(!(a.straightSpeed>10&&a.turnSpeed>10&&a.speedRatio>.76&&a.turnLong>8&&a.turnSlip<.46&&a.maxDriveSlip<.48&&a.minDriveForce>250))throw new Error('Steering acceleration regression: '+JSON.stringify(a));
             const g=await page.evaluate(()=>window.__polygonRush.testGripCornering());
-            if(!(g.coastSlip<.38&&g.powerSlip<.42&&g.powerSpeed>8&&g.brakeSlip<.44&&g.driftSlip>g.coastSlip*1.03))throw new Error('Grip cornering regression: '+JSON.stringify(g));
+            if(!(g.coastSlip<.40&&g.powerSlip<.44&&g.powerSpeed>8&&g.brakeSlip<.45&&g.driftSlip>g.coastSlip*1.02))throw new Error('Grip cornering regression: '+JSON.stringify(g));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
             if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
             const playerDrive=await page.evaluate(()=>window.__polygonRush.testPlayerDrive());
-            if(!(playerDrive.distance>2.5&&playerDrive.speed>3.5&&playerDrive.force>700&&playerDrive.slip<.44))throw new Error('Player drive regression: '+JSON.stringify(playerDrive));
+            if(!(playerDrive.distance>2.5&&playerDrive.speed>3.5&&playerDrive.force>700&&playerDrive.slip<.46))throw new Error('Player drive regression: '+JSON.stringify(playerDrive));
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.every(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.16 RELEASE GATE PASS',JSON.stringify({r,b,a,g,collision,playerDrive,aiDistances}));
+            console.log('V15.5.17 RELEASE GATE PASS',JSON.stringify({c,r,a,g,collision,playerDrive,aiDistances}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
