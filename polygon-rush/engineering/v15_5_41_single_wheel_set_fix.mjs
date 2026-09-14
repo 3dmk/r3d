@@ -8,8 +8,7 @@ s=s.replaceAll("version:'15.5.40'","version:'15.5.41'");
 const anchor="body.position.y=.20;body.name='productionCarBody';carRoot.add(body);";
 must(s.includes(anchor),'production body anchor missing');
 const fix=`body.position.y=.20;body.name='productionCarBody';
-   // The Kenney race body GLB contains its own four wheel meshes. The runtime also uses four
-   // dedicated player_wheel GLBs for steering/spin, so suppress the embedded visual wheel set.
+   // Keep only the four dedicated steer/spin wheels. Suppress wheels embedded in the body GLB.
    let embeddedWheelMeshes=0;
    body.traverse(n=>{if(n===body)return;const nm=String(n.name||'').toLowerCase();if(/wheel|tire|tyre|rim/.test(nm)){n.visible=false;if(n.isMesh)embeddedWheelMeshes++}});
    body.userData.embeddedWheelMeshesHidden=embeddedWheelMeshes;
