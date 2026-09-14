@@ -28,6 +28,6 @@ for(const r of ['driveMomentumRise:5.8','driveMomentumFall:1.45','driveMomentumA
 fs.writeFileSync(file,s);
 console.log('Polygon Rush persistent acceleration momentum + normal turn grip applied');
 
-for(const patch of ['polygon-rush/engineering/v15_5_21_test_track_mode.mjs','polygon-rush/engineering/v15_5_22_progressive_steering_no_block_fix.mjs','polygon-rush/engineering/v15_5_23_turning_differential_fix.mjs','polygon-rush/engineering/v15_5_24_corner_exit_acceleration_fix.mjs','polygon-rush/engineering/v15_5_25_sprung_body_suspension_fix.mjs','polygon-rush/engineering/v15_5_26_physics_chassis_body_fix.mjs','polygon-rush/engineering/v15_5_27_freeroam_demo_course.mjs']){
+for(const patch of ['polygon-rush/engineering/v15_5_21_test_track_mode.mjs','polygon-rush/engineering/v15_5_22_progressive_steering_no_block_fix.mjs','polygon-rush/engineering/v15_5_23_turning_differential_fix.mjs','polygon-rush/engineering/v15_5_24_corner_exit_acceleration_fix.mjs','polygon-rush/engineering/v15_5_25_sprung_body_suspension_fix.mjs','polygon-rush/engineering/v15_5_26_physics_chassis_body_fix.mjs','polygon-rush/engineering/v15_5_27_freeroam_demo_course.mjs','polygon-rush/engineering/v15_5_28_course_menu_sync_fix.mjs']){
  const run=spawnSync(process.execPath,[patch,file],{stdio:'inherit'});if(run.status!==0)process.exit(run.status??1);
 }
