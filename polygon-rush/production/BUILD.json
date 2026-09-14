@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.39",
+  "productionVersion": "15.5.40",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "9b25350ece2ace8240e9339f9896dbfe9525d7190a2abdb051aa9e8f925ad017",
+  "indexSha256": "5bd39d28c427f6085c2f09ebd0e50eb1f374cab8eece127957fc4398c9a4b898",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.38",
-  "handlingFix": "steer-under-power",
+  "parentProductionVersion": "15.5.39",
+  "handlingFix": "3d-world-contact-impulse",
   "features": [
     "steer-under-power",
     "test-track",
@@ -64,7 +64,12 @@
     "oriented-chassis-obb",
     "slope-normal-contact",
     "bounded-slope-height-follow",
-    "anti-ramp-launch-clamp"
+    "anti-ramp-launch-clamp",
+    "triangle-normal-contact-impulse",
+    "contact-tangent-friction",
+    "contact-torque-response",
+    "slope-pitch-roll-response",
+    "reduced-height-snapping"
   ],
   "developmentScope": "free-roam-only"
 }
