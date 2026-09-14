@@ -1,17 +1,17 @@
-name: Deploy Polygon Rush Pages
+name: Promote and Deploy Polygon Rush Production
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  deploy:
+  promote:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -19,128 +19,89 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.17 Corner Drive + Steering Response
+      - name: Recover last browser-gated successful production artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          cat polygon-rush/v14.6/source/part*.txt > index.html
+          set -euo pipefail
+          rm -rf /tmp/polygon-rush-promote
+          mkdir -p /tmp/polygon-rush-promote
+          cd /tmp/polygon-rush-promote
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/10340434446/zip \
+            -o artifact.zip
+          unzip -q artifact.zip
+          mkdir site
+          tar -xf artifact.tar -C site
+          test -s site/play/v15.5.17/index.html
+          test -s site/play/v15.5.17/three.min.js
+          test -s site/play/v15.5.17/VERSION.txt
+          printf '%s  %s\n' \
+            '7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117' \
+            'site/play/v15.5.17/index.html' | sha256sum -c -
+          printf '%s  %s\n' \
+            '218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39' \
+            'site/play/v15.5.17/three.min.js' | sha256sum -c -
+
+      - name: Promote immutable files into polygon-rush production
+        run: |
+          set -euo pipefail
+          cp /tmp/polygon-rush-promote/site/play/v15.5.17/index.html polygon-rush/production/index.html
+          cp /tmp/polygon-rush-promote/site/play/v15.5.17/three.min.js polygon-rush/production/three.min.js
+          cp /tmp/polygon-rush-promote/site/play/v15.5.17/VERSION.txt polygon-rush/production/VERSION.txt
+          cat > polygon-rush/production/BUILD.json <<'JSON'
+          {
+            "schema": 1,
+            "product": "Polygon Rush",
+            "productionVersion": "15.5.17",
+            "sourceWorkflowRun": 34827164756,
+            "sourceWorkflowRunNumber": 220,
+            "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
+            "sourceArtifactId": 10340434446,
+            "releaseGate": "browser-gated-success",
+            "indexSha256": "7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117",
+            "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
+            "deploymentModel": "committed-static-production"
+          }
+          JSON
+          test "$(wc -c < polygon-rush/production/index.html)" -eq 84903
+          test "$(wc -c < polygon-rush/production/three.min.js)" -eq 633338
+          grep -q "Polygon Rush" polygon-rush/production/index.html
+
+      - name: Commit production snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polygon-rush/production/index.html polygon-rush/production/three.min.js polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Promote verified Polygon Rush production snapshot [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Validate static hosting target
+        run: |
+          set -euo pipefail
+          test -f polygon-rush/production/index.html
+          test -f polygon-rush/production/three.min.js
+          test -f polygon-rush/production/VERSION.txt
+          test -f polygon-rush/production/BUILD.json
+          test -f polygon-rush/production/_headers
           python3 - <<'PY'
-          from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text()
-          s=s.replace(',1)}\n }\n}\n\nconst renderer','const renderer',1)
-          p.write_text(s)
+          import json, pathlib, hashlib
+          root=pathlib.Path('polygon-rush/production')
+          meta=json.loads((root/'BUILD.json').read_text())
+          assert meta['releaseGate']=='browser-gated-success'
+          assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
+          assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
           PY
-          node polygon-rush/engineering/v15_4_core_drive_rebuild.mjs index.html
-          node polygon-rush/engineering/v15_5_wheel_physics_rebuild.mjs index.html
-          node polygon-rush/engineering/v15_5_1_wheel_axis_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_2_grip_collision_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_3_direction_stability_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_4_car_steering_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_5_drive_friction_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_6_weighted_drive_steering_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_7_corner_inertia_alignment_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_8_natural_mass_dynamics_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_9_force_wheel_contact_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_9_grid_contact_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_10_wheel_steering_cg_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_11_slip_traction_brake_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_11_brake_balance_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_12_corner_momentum_relaxation_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_13_grip_cornering_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_14_steering_acceleration_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_15_brake_inertia_stability_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_16_brake_release_recovery_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_17_corner_drive_inertia_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_17_terrain_lightness_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_18_tight_corner_steering_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_19_countersteer_recovery_fix.mjs index.html
-          node polygon-rush/engineering/v15_5_20_acceleration_momentum_fix.mjs index.html
-          curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
-          test -s three.min.js
-          test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.17
-          cp index.html play/v15.5.17/index.html
-          cp three.min.js play/v15.5.17/three.min.js
-          printf 'Polygon Rush v15.5.17 Corner Drive + Steering Response\n' > play/v15.5.17/VERSION.txt
-
-      - name: Validate generated game structure
-        run: |
-          node --check three.min.js
-          python3 - <<'PY'
-          import re, pathlib
-          s=pathlib.Path('index.html').read_text()
-          js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
-          pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
-          required=[
-            'Polygon Rush v15.5.17 Corner Drive + Steering Response','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
-            'testSteeringAcceleration:()=>','testBrakeRecovery:()=>','testCornerDriveResponse:()=>','testCounterSteerRecovery:()=>','testAccelerationMomentum:()=>','testGripCornering:()=>','testCollision:()=>','testAI:',
-            'yawInertiaScale:1.12','cornerCombinedGrip:1.28','drivenLongPriority:.90','steeringDriveAssist:.38','steeringYawRelease:2.4',
-            'rackRate=12.6','requestedLong','reservedLong','brakeMaxDecel:8.2','brakeReleaseRate:20.0',
-            'counterSteerYawBrake:13.5','counterSteerLatAlign:7.8','driveMomentumRise:5.8','driveMomentumFall:1.45','driveMomentumAccel:4.6',
-            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','three.min.js'
-          ]
-          for r in required: assert r in s, r
-          forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'targetYaw']
-          for r in forbidden: assert r not in s, r
-          assert s.count('function applyArcadeMovement(car,controls,dt){')==1
-          assert pathlib.Path('play/v15.5.17/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.17 Corner Drive + Steering Response'
-          PY
-          node --check /tmp/polygon-rush-inline.js
-
-      - name: Install browser test runtime
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install --silent playwright@1.55.0
-          npx playwright install --with-deps chromium
-
-      - name: Run corner drive steering response gameplay release gate
-        run: |
-          python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          cat > polygon-rush-browser-test.cjs <<'JS'
-          const { chromium } = require('playwright');
-          (async()=>{
-            const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:1280,height:720}});
-            const errors=[];
-            page.on('pageerror',e=>errors.push(String(e)));
-            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.17/',{waitUntil:'networkidle'});
-            await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
-            const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.17'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
-            await page.click('#start');
-            await page.waitForFunction(()=>typeof window.__polygonRush?.testCornerDriveResponse==='function',null,{timeout:5000});
-            const c=await page.evaluate(()=>window.__polygonRush.testCornerDriveResponse());
-            if(!(c.straightSpeed>10&&c.turnSpeed>10&&c.speedRatio>.80&&c.turnHeading>.08&&c.turnSlip<.44&&c.turnYaw>.03&&c.earlySteer>.06&&c.minDriveForce>250&&c.releasedSlip<.36&&c.releasedYaw<c.turnYaw*.90))throw new Error('Corner drive response gate failed: '+JSON.stringify(c));
-            const cs=await page.evaluate(()=>window.__polygonRush.testCounterSteerRecovery());
-            if(!(cs.speed>10&&cs.reversed===true&&cs.afterSlip<.42))throw new Error('Counter-steer recovery regression: '+JSON.stringify(cs));
-            const am=await page.evaluate(()=>window.__polygonRush.testAccelerationMomentum());
-            if(!(am.speeds.length>=5&&am.speeds[2]>am.speeds[0]+2&&am.beforeLift>10&&am.stored>.45&&am.kept===true&&am.afterStored>.20))throw new Error('Acceleration momentum regression: '+JSON.stringify(am));
-            const r=await page.evaluate(()=>window.__polygonRush.testBrakeRecovery());
-            if(!(r.maxReverse<.02&&r.minLong>=-.02&&r.recovered>r.releaseSpeed+4&&r.recovered>6&&r.blendAfter<.03))throw new Error('Brake recovery regression: '+JSON.stringify(r));
-            const a=await page.evaluate(()=>window.__polygonRush.testSteeringAcceleration());
-            if(!(a.straightSpeed>10&&a.turnSpeed>10&&a.speedRatio>.76&&a.turnLong>8&&a.turnSlip<.46&&a.maxDriveSlip<.48&&a.minDriveForce>250))throw new Error('Steering acceleration regression: '+JSON.stringify(a));
-            const g=await page.evaluate(()=>window.__polygonRush.testGripCornering());
-            if(!(g.coastSlip<.40&&g.powerSlip<.44&&g.powerSpeed>8&&g.brakeSlip<.45&&g.driftSlip>g.coastSlip*1.02))throw new Error('Grip cornering regression: '+JSON.stringify(g));
-            const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
-            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
-            const playerDrive=await page.evaluate(()=>window.__polygonRush.testPlayerDrive());
-            if(!(playerDrive.distance>2.5&&playerDrive.speed>3.5&&playerDrive.force>700&&playerDrive.slip<.46))throw new Error('Player drive regression: '+JSON.stringify(playerDrive));
-            await page.evaluate(()=>window.__polygonRush.forceGo());
-            const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
-            if(!aiDistances.every(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
-            if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.17 RELEASE GATE PASS',JSON.stringify({c,cs,am,r,a,g,collision,playerDrive,aiDistances}));
-            await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
-          JS
-          node polygon-rush-browser-test.cjs
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
-      - name: Deploy to GitHub Pages
+          path: polygon-rush/production
+      - name: Deploy static production to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
