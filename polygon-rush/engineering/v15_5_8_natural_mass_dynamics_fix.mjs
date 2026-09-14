@@ -22,7 +22,7 @@ const newSteer=` const lv0=localVelocity(car),speedAbs=Math.abs(lv0.long);
  const massResponse=clamp(1/Math.sqrt(massRatio),.72,1.18);
  const rawSteer=clamp(controls.steer||0,-1,1);
  const curvedSteer=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),WHEEL_PHYS.steerCurve);
- const speedSteer=clamp(1.06-(speedAbs*speedAbs)/5200,.34,1);
+ const speedSteer=clamp(1.04-(speedAbs*speedAbs)/2200,.28,1);
  const steerTarget=curvedSteer*WHEEL_PHYS.steerMax*speedSteer;
  const steerRate=(Math.abs(rawSteer)>.02?(WHEEL_PHYS.steerResponse+1.0):WHEEL_PHYS.steerCenter)*massResponse*WHEEL_PHYS.steerInertia;
  car._steerAngle+=(steerTarget-car._steerAngle)*(1-Math.exp(-steerRate*dt));`;
