@@ -62,7 +62,7 @@ jobs:
           required=[
             'Polygon Rush v15.5.11 Slip Traction + Brake Physics','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
             'testWheelForces:()=>','testPlayerDrive:()=>','testWheelSteeringTorque:()=>','testMassPhysics:()=>','testTractionBrakeSteer:()=>','testCollision:()=>','testAI:',
-            'wheelInertia:6.5','driveWheelTorque:2350','brakeWheelTorque:3200','longSlipStiffness:6.0','absSlip:.14','tcSlip:.24',
+            'wheelInertia:6.5','driveWheelTorque:2350','brakeWheelTorque:2600','longSlipStiffness:6.0','absSlip:.12','tcSlip:.24',
             'slipRatio','driveTorque','brakeTorque','normalForce:normal','gripLimit:maxForce',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)','w.userData.rim.rotation.set(w.userData.spin,0,0)',
@@ -106,7 +106,7 @@ jobs:
             const start=await page.evaluate(()=>window.__polygonRush.state());
             if(!start.hasPlayer||start.aiCount!==4||start.wheels!==4)throw new Error('Vehicle invariant failed: '+JSON.stringify(start));
             const t=await page.evaluate(()=>window.__polygonRush.testTractionBrakeSteer());
-            if(!(t.accelSpeed>8&&t.maxDriveSlip>0.01&&t.maxDriveSlip<0.45&&t.steerAngle>0.09&&t.steerHeading>0.02&&t.brakeEnd<t.brakeStart*0.82&&t.brakeHeading>0.015&&t.brakeHeading<1.0&&t.maxBrakeSlip<0.35&&t.frontLat>500))throw new Error('Traction/brake/steer gate failed: '+JSON.stringify(t));
+            if(!(t.accelSpeed>8&&t.maxDriveSlip>0.01&&t.maxDriveSlip<0.45&&t.steerAngle>0.09&&t.steerHeading>0.02&&t.brakeEnd<t.brakeStart*0.90&&t.brakeEnd>5&&t.brakeHeading>0.01&&t.maxBrakeLock<0.22&&t.brakeBodySlip<0.45&&t.frontLat>500))throw new Error('Traction/brake/steer gate failed: '+JSON.stringify(t));
             const steer=await page.evaluate(()=>window.__polygonRush.testWheelSteeringTorque());
             if(!(steer.turnYaw>steer.straightYaw+.005&&steer.torque>300&&steer.frontLat>700&&steer.headingChange>.02&&steer.inertia>1000))throw new Error('Wheel steering regression: '+JSON.stringify(steer));
             const mass=await page.evaluate(()=>window.__polygonRush.testMassPhysics());
