@@ -33,7 +33,8 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  let steerLeft=0,steerRight=0;
  if(absRack>.0001){
   const turnR=L/Math.max(.001,Math.tan(absRack));
-  const inner=Math.atan(L/Math.max(.25,turnR-T*.5)),outer=Math.atan(L/(turnR+T*.5)),sgn=Math.sign(rack);
+  const ackInner=Math.atan(L/Math.max(.25,turnR-T*.5)),ackOuter=Math.atan(L/(turnR+T*.5)),sgn=Math.sign(rack);
+  const inner=absRack+(ackInner-absRack)*.58,outer=absRack+(ackOuter-absRack)*.58;
   steerLeft=sgn*(sgn>0?inner:outer);steerRight=sgn*(sgn>0?outer:inner);
  }
  const throttle=clamp(controls.throttle||0,0,1),brake=clamp(controls.brake||0,0,1),handbrake=controls.handbrake||0;
@@ -62,7 +63,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
   const loadSensitiveMu=WHEEL_PHYS.tireMu*surfaceGrip*clamp(1.04-(loadRatio-1)*.07,.88,1.10);
   const maxForce=Math.max(850,normal*loadSensitiveMu);
   const slipAngle=Math.atan2(vLat,Math.abs(vLong)+1.8);
-  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?1.05:.96);
+  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?.90:1.14);
   let latForce=-Math.tanh(slipAngle*4.2)*cornerK;
   let longForce=0;
   if(!front&&car._driveThrottle>.001){
@@ -85,8 +86,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  const longAccel=ax*forwardX+az*forwardZ,latAccel=ax*rightX+az*rightZ;
  car._longAccel+=(longAccel-car._longAccel)*(1-Math.exp(-8*dt));car._latAccel+=(latAccel-car._latAccel)*(1-Math.exp(-8*dt));
  car.yawRate+=torqueY/inertia*dt;
- // Chassis heading changes only from wheel/contact torque. This is rotational drag, not steering assistance.
- car.yawRate*=Math.exp(-(.22+speedAbs*.004)*dt);
+ car.yawRate*=Math.exp(-(.78+speedAbs*.007)*dt);
  car.heading=wrapAngle(car.heading+car.yawRate*dt);
  car.pos.x+=car.vel.x*dt;car.pos.z+=car.vel.z*dt;
  const avgGround=groundSum/Math.max(1,contactCount),targetY=avgGround+WHEEL_PHYS.bodyRideHeight;
