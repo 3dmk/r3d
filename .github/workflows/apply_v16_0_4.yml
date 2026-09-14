@@ -42,3 +42,4 @@ jobs:
           git add polygon-rush/production/index.html polygon-rush/production/BUILD.json polygon-rush/production/VERSION.txt
           git commit -m 'Promote Polygon Rush v16.0.4 reference vehicle dynamics'
           git push
+# trigger v16.0.4
