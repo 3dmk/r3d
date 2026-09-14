@@ -7,8 +7,6 @@ s=s.replaceAll('Polygon Rush v15.5.36 Asset Orientation + Car Art','Polygon Rush
 s=s.replaceAll('v15.5.36 • ASSET ORIENTATION + CAR ART','v15.5.37 • MESH SCENE + COLLISION FIX');
 s=s.replaceAll("version:'15.5.36'","version:'15.5.37'");
 
-// Remove the generated Free Roam slab/plane course entirely. This was the source of the
-// center flicker/z-fighting and the flat rideable-plane collision behavior.
 s=s.replace(/function addFreeRoamCourseFeatures\(\)\{[\s\S]*?\n\}/,
 `function addFreeRoamCourseFeatures(){
  surfaceColliders.length=0;
@@ -36,17 +34,16 @@ function clearLegacyPrimitiveFreeRoam(){
 `;
 const anchor='function normalizeAsset(src,targetHeight){';must(s.includes(anchor),'normalizeAsset anchor missing');s=s.replace(anchor,insert+'\n'+anchor);
 
-// Make imported-asset collision derive from the actual loaded model bounds rather than hard-coded rectangles.
-s=s.replace("const place=async(name,x,z,h,yaw=0,collider=null,kind='prop')=>{const src=await get(name);if(!src)return null;const holder=orientAsset(normalizeAsset(src,h),kind);holder.position.set(x,freeRoamSurfaceY({x,z}),z);holder.rotation.y+=yaw;group.add(holder);realAssetState.count++;realAssetState.names.push(name);if(collider)addRealCollider(x,z,collider[0],collider[1],yaw);return holder};",
-"const place=async(name,x,z,h,yaw=0,collider=null,kind='prop')=>{const src=await get(name);if(!src)return null;const holder=orientAsset(normalizeAsset(src,h),kind);holder.position.set(x,freeRoamSurfaceY({x,z}),z);holder.rotation.y+=yaw;group.add(holder);holder.updateMatrixWorld(true);realAssetState.count++;realAssetState.names.push(name);if(collider)addGeometryCollider(holder,.06,.5);return holder};");
+const oldPlace="const place=async(name,x,z,h,yaw=0,collider=null,kind='prop')=>{const src=await get(name);if(!src)return null;const holder=orientAsset(normalizeAsset(src,h),kind);holder.position.set(x,freeRoamSurfaceY({x,z}),z);holder.rotation.y+=yaw;group.add(holder);realAssetState.count++;realAssetState.names.push(name);if(collider)addRealCollider(x,z,collider[0],collider[1],yaw);return holder};";
+const newPlace="const place=async(name,x,z,h,yaw=0,collider=null,kind='prop')=>{const src=await get(name);if(!src)return null;const holder=orientAsset(normalizeAsset(src,h),kind);holder.position.set(x,freeRoamSurfaceY({x,z}),z);holder.rotation.y+=yaw;group.add(holder);holder.updateMatrixWorld(true);realAssetState.count++;realAssetState.names.push(name);if(collider)addGeometryCollider(holder,.06,.5);return holder};";
+must(s.includes(oldPlace),'asset place block missing');s=s.replace(oldPlace,newPlace);
 
-// Ensure only imported art is visible once assets are ready.
 s=s.replace("const proc=world.getObjectByName('freeRoamProductionArt');if(proc)proc.visible=false;",
 "clearLegacyPrimitiveFreeRoam();const proc=world.getObjectByName('freeRoamProductionArt');if(proc)proc.visible=false;");
 
-// Add a runtime diagnostic for this exact regression.
-s=s.replace("wheelPhysics:true,realAssets:()=>({...realAssetState}),productionArt:()=>",
-"wheelPhysics:true,realAssets:()=>({...realAssetState}),freeRoamMeshCollision:()=>({surfaceColliders:surfaceColliders.length,visibleRideablePrimitives:world.children.filter(o=>o.isMesh&&o.visible&&o.userData?.collider?.rideable).length,geometryBoundColliders:barriers.filter(o=>o.userData?.collider?.source==='imported-mesh-bounds').length}),productionArt:()=>");
+const diagAnchor="realAssets:()=>({...realAssetState}),assetGeometry:";
+must(s.includes(diagAnchor),'diagnostic anchor missing');
+s=s.replace(diagAnchor,"realAssets:()=>({...realAssetState}),freeRoamMeshCollision:()=>({surfaceColliders:surfaceColliders.length,visibleRideablePrimitives:world.children.filter(o=>o.isMesh&&o.visible&&o.userData?.collider?.rideable).length,geometryBoundColliders:barriers.filter(o=>o.userData?.collider?.source==='imported-mesh-bounds').length}),assetGeometry:");
 
 s+='\n<!-- v15.5.37 no center slab, no rideable primitive planes, imported mesh visuals + geometry-derived volumetric collision -->\n';
 for(const x of ['v15.5.37','addGeometryCollider','freeRoamMeshCollision','no generated slab/plane geometry'])must(s.includes(x),'missing '+x);
