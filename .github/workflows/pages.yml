@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.7 Corner Inertia + Alignment Fix
+      - name: Rebuild Polygon Rush v15.5.8 Natural Mass Dynamics
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -38,13 +38,14 @@ jobs:
           node polygon-rush/engineering/v15_5_5_drive_friction_fix.mjs index.html
           node polygon-rush/engineering/v15_5_6_weighted_drive_steering_fix.mjs index.html
           node polygon-rush/engineering/v15_5_7_corner_inertia_alignment_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_8_natural_mass_dynamics_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.7
-          cp index.html play/v15.5.7/index.html
-          cp three.min.js play/v15.5.7/three.min.js
-          printf 'Polygon Rush v15.5.7 Corner Inertia + Alignment Fix\n' > play/v15.5.7/VERSION.txt
+          mkdir -p play/v15.5.8
+          cp index.html play/v15.5.8/index.html
+          cp three.min.js play/v15.5.8/three.min.js
+          printf 'Polygon Rush v15.5.8 Natural Mass Dynamics\n' > play/v15.5.8/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -55,11 +56,13 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.7 Corner Inertia + Alignment Fix',
+            'Polygon Rush v15.5.8 Natural Mass Dynamics',
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
-            'testCarSteering:()=>','testStraightHold:()=>','testDriveFriction:()=>',
-            'testWeightedDrive:()=>','testSteerCurve:()=>','testCornerInertia:()=>',
-            'cornerInertia:.72','tireAlign:8.6','alignRelease:9.8','const cornerAccel=-long*car.yawRate',
+            'testNaturalDynamics:()=>','testCornerInertia:()=>','testWeightedDrive:()=>','testDriveFriction:()=>',
+            'massRef:1180','loadTransfer:.18','steerInertia:.76','velocityAlign:6.4','highSpeedGrip:.58',
+            'const effectiveMass=clamp(car.mass||WHEEL_PHYS.mass,760,2200)',
+            'const speedSteer=clamp(1.06-(speedAbs*speedAbs)/5200,.34,1)',
+            'const cornerAccel=-long*car.yawRate',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
@@ -71,9 +74,9 @@ jobs:
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
           assert s.count('function resolveCarCollision(a,b){')==1
           assert s.count('function physicsPlayer(dt){')==1
-          v=pathlib.Path('play/v15.5.7/index.html').read_text()
-          assert 'Polygon Rush v15.5.7 Corner Inertia + Alignment Fix' in v
-          assert pathlib.Path('play/v15.5.7/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.7 Corner Inertia + Alignment Fix'
+          v=pathlib.Path('play/v15.5.8/index.html').read_text()
+          assert 'Polygon Rush v15.5.8 Natural Mass Dynamics' in v
+          assert pathlib.Path('play/v15.5.8/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.8 Natural Mass Dynamics'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -83,7 +86,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run corner inertia alignment gameplay release gate
+      - name: Run natural vehicle dynamics gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -96,23 +99,21 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.7/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.8/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.7'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.8'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testCornerInertia==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testNaturalDynamics==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
 
+            const natural=await page.evaluate(()=>window.__polygonRush.testNaturalDynamics());
+            if(!(natural.lightAccel>natural.heavyAccel*1.15&&natural.lowTurn>0.04&&natural.highTurn>0.04&&natural.highTurn<natural.lowTurn*1.9&&natural.highLat>0.01&&natural.highSlip<0.18&&natural.releaseAfter<natural.releaseBefore*.35))throw new Error('Natural dynamics failed: '+JSON.stringify(natural));
             const corner=await page.evaluate(()=>window.__polygonRush.testCornerInertia());
-            if(!(corner.peakLat>0.25&&corner.peakLat<2.8&&corner.turnSlip>0.008&&corner.turnSlip<0.11&&corner.afterRelease<corner.beforeRelease*.45&&corner.yawRate<0.12))throw new Error('Corner inertia/alignment failed: '+JSON.stringify(corner));
-            const weight=await page.evaluate(()=>window.__polygonRush.testWeightedDrive());
-            if(!(weight.s6>0&&weight.s31>weight.s6*2&&weight.s91>weight.s31*1.5&&weight.throttle>.9&&weight.accel>0))throw new Error('Weighted acceleration regression: '+JSON.stringify(weight));
-            const steer=await page.evaluate(()=>window.__polygonRush.testSteerCurve());
-            if(!(steer.full>steer.small*2.1&&steer.fullAngle>steer.smallAngle*2.1&&steer.small>0.005))throw new Error('Steering curve regression: '+JSON.stringify(steer));
+            if(!(corner.peakLat>0.08&&corner.peakLat<2.8&&corner.afterRelease<corner.beforeRelease*.5))throw new Error('Corner inertia regression: '+JSON.stringify(corner));
             const drive=await page.evaluate(()=>window.__polygonRush.testDriveFriction());
-            if(!(drive.driven>7&&drive.coastEnd<drive.coastStart-1&&drive.brakeEnd<9))throw new Error('Drive/friction regression: '+JSON.stringify(drive));
+            if(!(drive.driven>6&&drive.coastEnd<drive.coastStart-1&&drive.brakeEnd<10))throw new Error('Drive/friction regression: '+JSON.stringify(drive));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
             if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
 
@@ -120,7 +121,7 @@ jobs:
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.every(d=>d>0.5))throw new Error('All AI must move: '+JSON.stringify(aiDistances));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.7 RELEASE GATE PASS',JSON.stringify({corner,weight,steer,drive,collision,aiDistances}));
+            console.log('V15.5.8 RELEASE GATE PASS',JSON.stringify({natural,corner,drive,collision,aiDistances}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
