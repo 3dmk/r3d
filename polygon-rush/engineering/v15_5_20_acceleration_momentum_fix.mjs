@@ -25,26 +25,11 @@ s=s.replace(integrate,` const momentumSpeedFade=clamp(1-speedAbs/82,.26,1);
  const momentumSlipKeep=clamp(1-bodySlip/WHEEL_PHYS.driveMomentumSlipGate,.35,1);
  const momentumCornerKeep=Math.abs(rawSteer)>.05?WHEEL_PHYS.driveMomentumCornerKeep:1;
  const driveCarryAccel=WHEEL_PHYS.driveMomentumAccel*car._driveMomentum*momentumSpeedFade*momentumSlipKeep*momentumCornerKeep;
- if(driveCarryAccel>0&&brake<.02&&!handbrake){
-  fx+=Math.sin(car.heading)*mass*driveCarryAccel;
-  fz+=Math.cos(car.heading)*mass*driveCarryAccel;
- }
+ if(driveCarryAccel>0&&brake<.02&&!handbrake){fx+=Math.sin(car.heading)*mass*driveCarryAccel;fz+=Math.cos(car.heading)*mass*driveCarryAccel;}
  const responseMass=mass*WHEEL_PHYS.responseMassScale,ax=fx/responseMass,az=fz/responseMass;car.vel.x+=ax*dt;car.vel.z+=az*dt;
- // Preserve forward acceleration momentum, but do not let ordinary steering feel like a drift.
- // Correct only lateral velocity after force integration and only during normal race steering.
  if(!handbrake&&Math.abs(rawSteer)>.045){
-  const rxTurn=Math.cos(car.heading),rzTurn=-Math.sin(car.heading);
-  const latTurn=car.vel.x*rxTurn+car.vel.z*rzTurn;
-  const longTurn=Math.abs(car.vel.x*Math.sin(car.heading)+car.vel.z*Math.cos(car.heading));
-  const turnSlip=Math.abs(latTurn)/Math.max(3,longTurn);
-  if(turnSlip>WHEEL_PHYS.raceTurnSlipTarget){
-   const excess=clamp((turnSlip-WHEEL_PHYS.raceTurnSlipTarget)/.22,0,1);
-   const throttleGrip=1-(controls.throttle||0)*(1-WHEEL_PHYS.racePowerGripKeep);
-   const turnGripRate=WHEEL_PHYS.raceTurnGripRate*(.68+.32*clamp(speedAbs/26,0,1))*excess*throttleGrip;
-   const turnGripBlend=1-Math.exp(-turnGripRate*dt);
-   car.vel.x-=rxTurn*latTurn*turnGripBlend;
-   car.vel.z-=rzTurn*latTurn*turnGripBlend;
-  }
+  const rxTurn=Math.cos(car.heading),rzTurn=-Math.sin(car.heading),latTurn=car.vel.x*rxTurn+car.vel.z*rzTurn,longTurn=Math.abs(car.vel.x*Math.sin(car.heading)+car.vel.z*Math.cos(car.heading)),turnSlip=Math.abs(latTurn)/Math.max(3,longTurn);
+  if(turnSlip>WHEEL_PHYS.raceTurnSlipTarget){const excess=clamp((turnSlip-WHEEL_PHYS.raceTurnSlipTarget)/.22,0,1),throttleGrip=1-(controls.throttle||0)*(1-WHEEL_PHYS.racePowerGripKeep),turnGripRate=WHEEL_PHYS.raceTurnGripRate*(.68+.32*clamp(speedAbs/26,0,1))*excess*throttleGrip,turnGripBlend=1-Math.exp(-turnGripRate*dt);car.vel.x-=rxTurn*latTurn*turnGripBlend;car.vel.z-=rzTurn*latTurn*turnGripBlend;}
  }`);
 
 const hook="window.__polygonRush={version:'15.5.17',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,";
@@ -55,6 +40,6 @@ for(const r of ['driveMomentumRise:5.8','driveMomentumFall:1.45','driveMomentumA
 fs.writeFileSync(file,s);
 console.log('Polygon Rush persistent acceleration momentum + normal turn grip applied');
 
-const testPatch='polygon-rush/engineering/v15_5_21_test_track_mode.mjs';
-const testRun=spawnSync(process.execPath,[testPatch,file],{stdio:'inherit'});
-if(testRun.status!==0)process.exit(testRun.status??1);
+for(const patch of ['polygon-rush/engineering/v15_5_21_test_track_mode.mjs','polygon-rush/engineering/v15_5_22_progressive_steering_no_block_fix.mjs']){
+ const run=spawnSync(process.execPath,[patch,file],{stdio:'inherit'});if(run.status!==0)process.exit(run.status??1);
+}
