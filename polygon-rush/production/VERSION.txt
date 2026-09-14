@@ -1,1 +1,1 @@
-Polygon Rush v15.5.36 Asset Orientation + Car Art
+Polygon Rush v15.5.37 Mesh Scene + Collision Fix
