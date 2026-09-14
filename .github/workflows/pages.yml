@@ -1,5 +1,5 @@
 name: Promote Polygon Rush v15.5.33
-# retry after diagnostic anchor correction
+# retry with rear traction correction
 on:
   push:
     branches: [main]
