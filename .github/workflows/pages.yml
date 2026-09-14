@@ -1,4 +1,5 @@
 name: Promote Polygon Rush v15.5.34
+# retry after runtime Free Roam-only enforcement
 on:
   push:
     branches: [main]
