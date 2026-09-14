@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.34",
+  "productionVersion": "15.5.35",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "739d8f6939fa89143151146bf45636191bf3c666b2f6ead3bf458961a08b77ea",
+  "indexSha256": "2941f3983c59756e609d8d57220465b4a4b4a7b8a5f03bc31c1fafc149f0f46f",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.33",
+  "parentProductionVersion": "15.5.34",
   "handlingFix": "steer-under-power",
   "features": [
     "steer-under-power",
@@ -31,7 +31,14 @@
     "stylized-pbr-art-pass",
     "modeled-environment-dressing",
     "production-lighting",
-    "free-roam-vertical-slice"
+    "free-roam-vertical-slice",
+    "local-gltf-runtime",
+    "real-cc0-model-assets",
+    "real-player-vehicle-model",
+    "real-environment-models",
+    "optimized-collision-proxies",
+    "local-third-party-assets",
+    "stylized-pbr-model-materials"
   ],
   "developmentScope": "free-roam-only"
 }
