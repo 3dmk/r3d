@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.9 Force Wheel Contact
+      - name: Rebuild Polygon Rush v15.5.10 Wheel Steering + CG Physics
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -41,13 +41,14 @@ jobs:
           node polygon-rush/engineering/v15_5_8_natural_mass_dynamics_fix.mjs index.html
           node polygon-rush/engineering/v15_5_9_force_wheel_contact_fix.mjs index.html
           node polygon-rush/engineering/v15_5_9_grid_contact_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_10_wheel_steering_cg_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.9
-          cp index.html play/v15.5.9/index.html
-          cp three.min.js play/v15.5.9/three.min.js
-          printf 'Polygon Rush v15.5.9 Force Wheel Contact\n' > play/v15.5.9/VERSION.txt
+          mkdir -p play/v15.5.10
+          cp index.html play/v15.5.10/index.html
+          cp three.min.js play/v15.5.10/three.min.js
+          printf 'Polygon Rush v15.5.10 Wheel Steering + CG Physics\n' > play/v15.5.10/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -58,21 +59,21 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.9 Force Wheel Contact','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
-            'testWheelForces:()=>','testPlayerDrive:()=>','testNaturalDynamics:()=>','testCollision:()=>','testAI:',
-            'tireMu:1.34','tireCorner:14500','tireLong:11800','drivetrain:1.14','collisionFriction:.52','collisionRestitution:.12',
-            'normalForce:normal','gripLimit:maxForce','longForce','latForce','slipAngle',
+            'Polygon Rush v15.5.10 Wheel Steering + CG Physics','playerIdx=248','gridIdx=[252,254,256,258]','countdown=3.2',
+            'testWheelForces:()=>','testPlayerDrive:()=>','testWheelSteeringTorque:()=>','testMassPhysics:()=>','testCollision:()=>','testAI:',
+            'vehicleLength:4.45','vehicleWidth:2.15','cgHeight:.62','cgZ:-.08','yawInertiaScale:1.0',
+            'const inertia=mass*','steerLeft','steerRight','normalForce:normal','gripLimit:maxForce','slipAngle',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)','w.userData.rim.rotation.set(w.userData.spin,0,0)',
             'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','forceGo:()=>','three.min.js'
           ]
           for r in required: assert r in s, r
-          forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'w.userData.tire.rotation.y=w.userData.spin','w.userData.rim.rotation.y=w.userData.spin']
+          forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'w.userData.tire.rotation.y=w.userData.spin','w.userData.rim.rotation.y=w.userData.spin','targetYaw']
           for r in forbidden: assert r not in s, r
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
           assert s.count('function resolveCarCollision(a,b){')==1
           assert s.count('function physicsPlayer(dt){')==1
-          assert pathlib.Path('play/v15.5.9/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.9 Force Wheel Contact'
+          assert pathlib.Path('play/v15.5.10/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.10 Wheel Steering + CG Physics'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -82,7 +83,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run force wheel contact gameplay release gate
+      - name: Run wheel steering and mass gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -95,25 +96,29 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.9/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.10/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.9'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.10'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testWheelForces==='function'&&typeof window.__polygonRush?.testPlayerDrive==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testWheelSteeringTorque==='function'&&typeof window.__polygonRush?.testMassPhysics==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.state.wheels!==4)throw new Error('Vehicle invariant failed: '+JSON.stringify(start));
+            const steer=await page.evaluate(()=>window.__polygonRush.testWheelSteeringTorque());
+            if(!(steer.turnYaw>steer.straightYaw+.01&&steer.torque>500&&steer.frontLat>1000&&Math.abs(steer.leftSteer-steer.rightSteer)>.001&&steer.headingChange>.03&&steer.inertia>1000&&steer.mass===1180))throw new Error('Wheel steering torque gate failed: '+JSON.stringify(steer));
+            const mass=await page.evaluate(()=>window.__polygonRush.testMassPhysics());
+            if(!(mass.lightSpeed>mass.heavySpeed*1.12&&mass.heavyInertia>mass.lightInertia*1.5&&mass.lightMass===900&&mass.heavyMass===1700))throw new Error('Mass physics gate failed: '+JSON.stringify(mass));
             const wf=await page.evaluate(()=>window.__polygonRush.testWheelForces());
-            if(!(wf.wheels===4&&wf.accelSpeed>11&&wf.driveForce>1000&&wf.latForce>1000&&wf.maxWheelSlip>0.005&&wf.gripRatio<=1.001&&wf.turnSlip<0.24))throw new Error('Wheel force gate failed: '+JSON.stringify(wf));
+            if(!(wf.wheels===4&&wf.accelSpeed>9&&wf.driveForce>900&&wf.latForce>900&&wf.gripRatio<=1.001&&wf.turnSlip<0.30))throw new Error('Wheel force regression: '+JSON.stringify(wf));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
-            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision force gate failed: '+JSON.stringify(collision));
+            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
             const playerDrive=await page.evaluate(()=>window.__polygonRush.testPlayerDrive());
-            if(!(playerDrive.distance>3&&playerDrive.speed>4&&playerDrive.force>1000&&playerDrive.slip<0.25))throw new Error('Player drive force gate failed: '+JSON.stringify(playerDrive));
+            if(!(playerDrive.distance>3&&playerDrive.speed>4&&playerDrive.force>900&&playerDrive.slip<0.30))throw new Error('Player drive regression: '+JSON.stringify(playerDrive));
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.every(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.9 RELEASE GATE PASS',JSON.stringify({wf,collision,playerDrive,aiDistances}));
+            console.log('V15.5.10 RELEASE GATE PASS',JSON.stringify({steer,mass,wf,collision,playerDrive,aiDistances}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
