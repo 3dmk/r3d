@@ -18,12 +18,9 @@ s=s.replace(oldImpulse,`function applyWorldContactImpulse(car,contacts,dt){
  let n=hits.reduce((a,c)=>a.add(c.normal),new THREE.Vector3()).normalize();if(n.y<.12)n.y=.12;n.normalize();
  const v=new THREE.Vector3(car.vel.x,car.vy||car.vel.y||0,car.vel.z),vn=v.dot(n);
  let impulse=0;
- // Ground and ramp contacts are support constraints, not bouncy ball impacts.
  if(vn<0){const restitution=Math.abs(vn)>8?.025:0;const remove=-(1+restitution)*vn;v.addScaledVector(n,remove);impulse=remove*(car.mass||1180)}
- // Tire/chassis friction acts only in the surface tangent plane.
  const tangent=v.clone().addScaledVector(n,-v.dot(n)),tLen=tangent.length();
  if(tLen>1e-5){const groundedGrip=hits.length>=3?.92:.72,drop=Math.min(tLen,9.81*groundedGrip*dt);v.addScaledVector(tangent,-drop/tLen)}
- // Prevent tiny vertical residuals from making the chassis hover after contact.
  if(hits.length>=2&&Math.abs(v.y)<1.25)v.y*=Math.max(0,1-dt*18);
  car.vel.x=v.x;car.vel.z=v.z;car.vy=v.y;car.vel.y=v.y;
  const forward=new THREE.Vector3(Math.sin(car.heading),0,Math.cos(car.heading)),right=new THREE.Vector3(Math.cos(car.heading),0,-Math.sin(car.heading));
