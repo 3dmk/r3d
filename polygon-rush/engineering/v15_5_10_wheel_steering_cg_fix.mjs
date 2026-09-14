@@ -25,7 +25,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  const inertia=mass*(WHEEL_PHYS.vehicleLength*WHEEL_PHYS.vehicleLength+WHEEL_PHYS.vehicleWidth*WHEEL_PHYS.vehicleWidth)/12*WHEEL_PHYS.yawInertiaScale;
  const lv0=localVelocity(car),speedAbs=Math.abs(lv0.long),rawSteer=clamp(controls.steer||0,-1,1);
  const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.48);
- const speedAuthority=clamp(1.0-speedAbs*speedAbs/2850,.30,1);
+ const speedAuthority=clamp(.96-speedAbs*speedAbs/2100,.24,.96);
  const rackTarget=steerCurve*WHEEL_PHYS.steerMax*speedAuthority;
  const rackRate=WHEEL_PHYS.steerRackRate*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.72,1.18);
  car._steerAngle+=(rackTarget-car._steerAngle)*(1-Math.exp(-rackRate*dt));
@@ -34,7 +34,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  if(absRack>.0001){
   const turnR=L/Math.max(.001,Math.tan(absRack));
   const ackInner=Math.atan(L/Math.max(.25,turnR-T*.5)),ackOuter=Math.atan(L/(turnR+T*.5)),sgn=Math.sign(rack);
-  const inner=absRack+(ackInner-absRack)*.58,outer=absRack+(ackOuter-absRack)*.58;
+  const inner=absRack+(ackInner-absRack)*.48,outer=absRack+(ackOuter-absRack)*.48;
   steerLeft=sgn*(sgn>0?inner:outer);steerRight=sgn*(sgn>0?outer:inner);
  }
  const throttle=clamp(controls.throttle||0,0,1),brake=clamp(controls.brake||0,0,1),handbrake=controls.handbrake||0;
@@ -60,11 +60,12 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
   const normal=Math.max(mass*g*.08,axleDynamic*.5+sideTransfer);
   const surfaceGrip=clamp(terrainGrip(sample.type),.30,1.35)*(1-car.suspensionDamage*.32);
   const loadRatio=normal/(mass*g*.25);
-  const loadSensitiveMu=WHEEL_PHYS.tireMu*surfaceGrip*clamp(1.04-(loadRatio-1)*.07,.88,1.10);
+  const axleGripBias=front?.94:1.10;
+  const loadSensitiveMu=WHEEL_PHYS.tireMu*surfaceGrip*axleGripBias*clamp(1.04-(loadRatio-1)*.07,.88,1.10);
   const maxForce=Math.max(850,normal*loadSensitiveMu);
   const slipAngle=Math.atan2(vLat,Math.abs(vLong)+1.8);
-  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?.90:1.14);
-  let latForce=-Math.tanh(slipAngle*4.2)*cornerK;
+  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?.82:1.22);
+  let latForce=-Math.tanh(slipAngle*4.0)*cornerK;
   let longForce=0;
   if(!front&&car._driveThrottle>.001){
    const torqueCurve=clamp(1.18-Math.abs(vLong)/86,.46,1.12);
@@ -86,7 +87,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  const longAccel=ax*forwardX+az*forwardZ,latAccel=ax*rightX+az*rightZ;
  car._longAccel+=(longAccel-car._longAccel)*(1-Math.exp(-8*dt));car._latAccel+=(latAccel-car._latAccel)*(1-Math.exp(-8*dt));
  car.yawRate+=torqueY/inertia*dt;
- car.yawRate*=Math.exp(-(.78+speedAbs*.007)*dt);
+ car.yawRate*=Math.exp(-(1.02+speedAbs*.010)*dt);
  car.heading=wrapAngle(car.heading+car.yawRate*dt);
  car.pos.x+=car.vel.x*dt;car.pos.z+=car.vel.z*dt;
  const avgGround=groundSum/Math.max(1,contactCount),targetY=avgGround+WHEEL_PHYS.bodyRideHeight;
