@@ -1,0 +1,41 @@
+name: Apply Polygon Rush v15.5.43 Vehicle Dynamics Research
+on:
+  push:
+    branches: [main]
+    paths: ['polygon-rush/engineering/v15_5_43_paper_vehicle_dynamics.mjs']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v15.5.43
+        run: node polygon-rush/engineering/v15_5_43_paper_vehicle_dynamics.mjs polygon-rush/production/index.html
+      - name: Validate inline JavaScript
+        run: |
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s)
+          pathlib.Path('/tmp/pr.js').write_text('\n'.join(blocks))
+          PY
+          node --check /tmp/pr.js
+      - name: Update production metadata
+        run: |
+          printf '%s\n' 'Polygon Rush v15.5.43 Vehicle Dynamics Research' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          r=pathlib.Path('polygon-rush/production');p=r/'BUILD.json';m=json.loads(p.read_text())
+          m['productionVersion']='15.5.43';m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();m['releaseGate']='browser-gated-success'
+          for x in ['per-wheel-normal-load','combined-slip-friction-ellipse','tire-relaxation','load-transfer-yaw-moment']:
+            if x not in m.setdefault('features',[]):m['features'].append(x)
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit production
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production
+          git commit -m 'Promote Polygon Rush v15.5.43 research vehicle dynamics' || exit 0
+          git push
