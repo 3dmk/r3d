@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.33",
+  "productionVersion": "15.5.34",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "77250501746849cd99bd433519f92c45bd84e9c249abb76fa7de291b5e8b689b",
+  "indexSha256": "739d8f6939fa89143151146bf45636191bf3c666b2f6ead3bf458961a08b77ea",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.32",
+  "parentProductionVersion": "15.5.33",
   "handlingFix": "steer-under-power",
   "features": [
     "steer-under-power",
@@ -26,6 +26,12 @@
     "acceleration-response",
     "launch-torque",
     "mid-speed-pull",
-    "powered-corner-momentum"
-  ]
+    "powered-corner-momentum",
+    "free-roam-only",
+    "stylized-pbr-art-pass",
+    "modeled-environment-dressing",
+    "production-lighting",
+    "free-roam-vertical-slice"
+  ],
+  "developmentScope": "free-roam-only"
 }
