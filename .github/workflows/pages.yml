@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.8 Natural Mass Dynamics
+      - name: Rebuild Polygon Rush v15.5.9 Force Wheel Contact
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -39,13 +39,14 @@ jobs:
           node polygon-rush/engineering/v15_5_6_weighted_drive_steering_fix.mjs index.html
           node polygon-rush/engineering/v15_5_7_corner_inertia_alignment_fix.mjs index.html
           node polygon-rush/engineering/v15_5_8_natural_mass_dynamics_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_9_force_wheel_contact_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.8
-          cp index.html play/v15.5.8/index.html
-          cp three.min.js play/v15.5.8/three.min.js
-          printf 'Polygon Rush v15.5.8 Natural Mass Dynamics\n' > play/v15.5.8/VERSION.txt
+          mkdir -p play/v15.5.9
+          cp index.html play/v15.5.9/index.html
+          cp three.min.js play/v15.5.9/three.min.js
+          printf 'Polygon Rush v15.5.9 Force Wheel Contact\n' > play/v15.5.9/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -56,17 +57,13 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.8 Natural Mass Dynamics',
-            'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
-            'testNaturalDynamics:()=>','testCornerInertia:()=>','testWeightedDrive:()=>','testDriveFriction:()=>',
-            'massRef:1180','loadTransfer:.18','steerInertia:.76','velocityAlign:6.4','highSpeedGrip:.58',
-            'const effectiveMass=clamp(car.mass||WHEEL_PHYS.mass,760,2200)',
-            'const speedSteer=clamp(1.04-(speedAbs*speedAbs)/2200,.28,1)',
-            'const cornerAccel=-long*car.yawRate',
+            'Polygon Rush v15.5.9 Force Wheel Contact','playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
+            'testWheelForces:()=>','testNaturalDynamics:()=>','testCollision:()=>','testAI:',
+            'tireMu:1.34','tireCorner:14500','tireLong:11800','drivetrain:1.14','collisionFriction:.52','collisionRestitution:.12',
+            'normalForce:normal','gripLimit:maxForce','longForce','latForce','slipAngle',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
-            'w.userData.tire.rotation.set(w.userData.spin,0,0)',
-            'w.userData.rim.rotation.set(w.userData.spin,0,0)',
-            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:','forceGo:()=>','three.min.js'
+            'w.userData.tire.rotation.set(w.userData.spin,0,0)','w.userData.rim.rotation.set(w.userData.spin,0,0)',
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','forceGo:()=>','three.min.js'
           ]
           for r in required: assert r in s, r
           forbidden=['<script src="box3d_bridge.js"></script>',"solver:'arcade'",'w.userData.tire.rotation.y=w.userData.spin','w.userData.rim.rotation.y=w.userData.spin']
@@ -74,9 +71,7 @@ jobs:
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
           assert s.count('function resolveCarCollision(a,b){')==1
           assert s.count('function physicsPlayer(dt){')==1
-          v=pathlib.Path('play/v15.5.8/index.html').read_text()
-          assert 'Polygon Rush v15.5.8 Natural Mass Dynamics' in v
-          assert pathlib.Path('play/v15.5.8/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.8 Natural Mass Dynamics'
+          assert pathlib.Path('play/v15.5.9/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.9 Force Wheel Contact'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -86,7 +81,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run natural vehicle dynamics gameplay release gate
+      - name: Run force wheel contact gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -99,29 +94,28 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.8/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.9/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.8'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.9'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testNaturalDynamics==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testWheelForces==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
-            if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
-
-            const natural=await page.evaluate(()=>window.__polygonRush.testNaturalDynamics());
-            if(!(natural.lightAccel>natural.heavyAccel*1.15&&natural.lowTurn>0.04&&natural.highTurn>0.04&&natural.highTurn<natural.lowTurn*1.9&&natural.highLat>0.01&&natural.highSlip<0.18&&natural.releaseAfter<natural.releaseBefore*.35))throw new Error('Natural dynamics failed: '+JSON.stringify(natural));
-            const corner=await page.evaluate(()=>window.__polygonRush.testCornerInertia());
-            if(!(corner.peakLat>0.08&&corner.peakLat<2.8&&corner.afterRelease<corner.beforeRelease*.5))throw new Error('Corner inertia regression: '+JSON.stringify(corner));
-            const drive=await page.evaluate(()=>window.__polygonRush.testDriveFriction());
-            if(!(drive.driven>6&&drive.coastEnd<drive.coastStart-1&&drive.brakeEnd<10))throw new Error('Drive/friction regression: '+JSON.stringify(drive));
+            if(!start.state.hasPlayer||start.state.aiCount!==4||start.state.wheels!==4)throw new Error('Vehicle invariant failed: '+JSON.stringify(start));
+            const wf=await page.evaluate(()=>window.__polygonRush.testWheelForces());
+            if(!(wf.wheels===4&&wf.accelSpeed>11&&wf.driveForce>1000&&wf.latForce>1000&&wf.maxWheelSlip>0.005&&wf.gripRatio<=1.001&&wf.turnSlip<0.24))throw new Error('Wheel force gate failed: '+JSON.stringify(wf));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
-            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
-
+            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision force gate failed: '+JSON.stringify(collision));
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
-            if(!aiDistances.every(d=>d>0.5))throw new Error('All AI must move: '+JSON.stringify(aiDistances));
+            if(!aiDistances.every(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
+            const p0=await page.evaluate(()=>window.__polygonRush.state().player);
+            await page.keyboard.down('KeyW');await page.waitForTimeout(1800);await page.keyboard.up('KeyW');
+            const p1=await page.evaluate(()=>window.__polygonRush.state().player);
+            const moved=Math.hypot(p1.p[0]-p0.p[0],p1.p[1]-p0.p[1]);
+            if(!(moved>2&&p1.speed>3))throw new Error('Live acceleration weak: '+JSON.stringify({moved,p1}));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.8 RELEASE GATE PASS',JSON.stringify({natural,corner,drive,collision,aiDistances}));
+            console.log('V15.5.9 RELEASE GATE PASS',JSON.stringify({wf,collision,aiDistances,moved,liveSpeed:p1.speed}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
