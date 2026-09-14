@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.38",
+  "productionVersion": "15.5.39",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "9a00b661deafc86fb199c67d598731f512a300167b8f941409e7b0a6df163f6b",
+  "indexSha256": "9b25350ece2ace8240e9339f9896dbfe9525d7190a2abdb051aa9e8f925ad017",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.37",
+  "parentProductionVersion": "15.5.38",
   "handlingFix": "steer-under-power",
   "features": [
     "steer-under-power",
@@ -58,7 +58,13 @@
     "no-ramp-collision-plane",
     "2048-directional-shadows",
     "per-object-cast-receive-shadows",
-    "rebalanced-hemisphere-light"
+    "rebalanced-hemisphere-light",
+    "single-visible-wheel-set",
+    "four-independent-wheel-mesh-contact",
+    "oriented-chassis-obb",
+    "slope-normal-contact",
+    "bounded-slope-height-follow",
+    "anti-ramp-launch-clamp"
   ],
   "developmentScope": "free-roam-only"
 }
