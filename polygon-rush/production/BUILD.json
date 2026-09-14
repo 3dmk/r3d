@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.37",
+  "productionVersion": "15.5.38",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "9054c78fe9b3fec0b4271f61a7883c648fb0b2452cb61cd98e3908eb22889ac8",
+  "indexSha256": "9a00b661deafc86fb199c67d598731f512a300167b8f941409e7b0a6df163f6b",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.36",
+  "parentProductionVersion": "15.5.37",
   "handlingFix": "steer-under-power",
   "features": [
     "steer-under-power",
@@ -51,7 +51,14 @@
     "removed-rideable-primitive-slabs",
     "imported-mesh-only-free-roam-art",
     "geometry-derived-volumetric-colliders",
-    "no-planar-object-collision"
+    "no-planar-object-collision",
+    "imported-track-bump-ramps",
+    "imported-track-slope",
+    "triangle-mesh-ramp-wheel-surface",
+    "no-ramp-collision-plane",
+    "2048-directional-shadows",
+    "per-object-cast-receive-shadows",
+    "rebalanced-hemisphere-light"
   ],
   "developmentScope": "free-roam-only"
 }
