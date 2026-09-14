@@ -1,0 +1,58 @@
+name: Promote Polygon Rush v16 Clean Core
+on:
+  push:
+    branches: [main]
+    paths: ['polygon-rush/production/index.html']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate clean runtime
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          assert "v16.0.0" in s
+          assert "single-js-rigid-body" in s
+          assert "groundSnap:false" in s
+          assert "duplicateCollisionAuthority:false" in s
+          assert "duplicateYawAuthority:false" in s
+          assert "visualOwnsPhysics:false" in s
+          assert "targetY" not in s
+          assert "Box3D" not in s
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s)
+          inline='\n'.join(x for x in blocks if x.strip())
+          pathlib.Path('/tmp/pr.mjs').write_text(inline)
+          PY
+          node --check /tmp/pr.mjs
+      - name: Update production metadata
+        run: |
+          printf '%s\n' 'Polygon Rush v16.0.0 Clean Physics Core' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          root=pathlib.Path('polygon-rush/production')
+          p=root/'BUILD.json'
+          m=json.loads(p.read_text())
+          m['productionVersion']='16.0.0'
+          m['parentProductionVersion']='15.5.42'
+          m['deploymentModel']='committed-static-production'
+          m['developmentScope']='free-roam-only'
+          m['releaseGate']='clean-core-static-validated'
+          m['physicsAuthority']='single-js-rigid-body'
+          m['indexSha256']=hashlib.sha256((root/'index.html').read_bytes()).hexdigest()
+          m['threeSha256']=hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()
+          m['features']=['clean-production-runtime','single-physics-authority','four-wheel-suspension-contact','spring-damper-support','combined-tire-force-limit','tire-force-yaw','gravity-owned-airborne-motion','3d-obstacle-contact-impulse','no-ground-snap','no-duplicate-collision-authority','no-duplicate-yaw-authority','visuals-read-physics-only','real-glb-car-assets','free-roam-only']
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit metadata
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
+          git commit -m 'Promote Polygon Rush v16.0.0 clean physics core' || exit 0
+          git push
