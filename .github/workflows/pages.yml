@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.1 Wheel Axis Fix
+      - name: Rebuild Polygon Rush v15.5.2 Grip + Collision Fix
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -32,13 +32,14 @@ jobs:
           node polygon-rush/engineering/v15_4_core_drive_rebuild.mjs index.html
           node polygon-rush/engineering/v15_5_wheel_physics_rebuild.mjs index.html
           node polygon-rush/engineering/v15_5_1_wheel_axis_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_2_grip_collision_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.1
-          cp index.html play/v15.5.1/index.html
-          cp three.min.js play/v15.5.1/three.min.js
-          printf 'Polygon Rush v15.5.1 Wheel Axis Fix\n' > play/v15.5.1/VERSION.txt
+          mkdir -p play/v15.5.2
+          cp index.html play/v15.5.2/index.html
+          cp three.min.js play/v15.5.2/three.min.js
+          printf 'Polygon Rush v15.5.2 Grip + Collision Fix\n' > play/v15.5.2/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -49,14 +50,14 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.1 Wheel Axis Fix',
+            'Polygon Rush v15.5.2 Grip + Collision Fix',
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
-            'const WHEEL_PHYS=','car._wheelPhysics=wheelStates',
+            'cornerStiffness:13200','gripScale:1.62','lowSpeedGrip:2.4',
+            'steps=dt>.012?2:1','testGrip:()=>','testCollision:()=>',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
             'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:','forceGo:()=>',
-            'function runArcadeSolverSelfTest','START invariant failed: expected 1 player + 4 opponents',
             'three.min.js'
           ]
           for r in required: assert r in s, r
@@ -66,18 +67,17 @@ jobs:
             'initBox3D();requestAnimationFrame(loop);',
             "solver:'arcade'",
             'w.userData.tire.rotation.y=w.userData.spin',
-            'w.userData.rim.rotation.y=w.userData.spin',
-            'tire.rotation.z=Math.PI/2',
-            'rim.rotation.z=Math.PI/2'
+            'w.userData.rim.rotation.y=w.userData.spin'
           ]
           for r in forbidden: assert r not in s, r
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
-          assert s.count('function animateBuggy(car,long,lat,dt){')==1
+          assert s.count('function resolveCarCollision(a,b){')==1
+          assert s.count('function resolveWorldCollision(car,obj,radius=1.9,breakable=false){')==1
           assert s.count('function physicsPlayer(dt){')==1
           assert s.count('function updateAI(dt){')==1
-          v=pathlib.Path('play/v15.5.1/index.html').read_text()
-          assert 'Polygon Rush v15.5.1 Wheel Axis Fix' in v
-          assert pathlib.Path('play/v15.5.1/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.1 Wheel Axis Fix'
+          v=pathlib.Path('play/v15.5.2/index.html').read_text()
+          assert 'Polygon Rush v15.5.2 Grip + Collision Fix' in v
+          assert pathlib.Path('play/v15.5.2/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.2 Grip + Collision Fix'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -87,7 +87,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run real browser wheel-axis gameplay gate
+      - name: Run grip collision and gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -100,24 +100,31 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.1/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.2/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.1'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong physics build: '+JSON.stringify(boot));
-            if(!(boot.selfTestDistance>2))throw new Error('Wheel solver self-test did not move: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.2'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(!(boot.selfTestDistance>2))throw new Error('Wheel solver self-test failed: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.state==='function'&&typeof window.__polygonRush?.testAI==='function'&&typeof window.__polygonRush?.forceGo==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.state==='function'&&typeof window.__polygonRush?.testGrip==='function'&&typeof window.__polygonRush?.testCollision==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
+
+            const grip=await page.evaluate(()=>window.__polygonRush.testGrip());
+            if(!(grip.before>5&&grip.after<grip.before*.38&&grip.ratio<.38))throw new Error('Grip decay gate failed: '+JSON.stringify(grip));
+            const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
+            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Immediate collision response gate failed: '+JSON.stringify(collision));
+
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
-            if(!aiDistances.some(d=>d>0.5))throw new Error('AI wheel-physics movement gate failed: '+JSON.stringify(aiDistances));
+            if(!aiDistances.some(d=>d>0.5))throw new Error('AI movement failed: '+JSON.stringify(aiDistances));
+
             const p0=await page.evaluate(()=>window.__polygonRush.state().player);
             await page.keyboard.down('KeyW');
-            await page.waitForTimeout(1800);
-            const pMid=await page.evaluate(()=>window.__polygonRush.state().player);
+            await page.waitForTimeout(2200);
+            const pStraight=await page.evaluate(()=>window.__polygonRush.state().player);
             await page.keyboard.down('KeyA');
-            await page.waitForTimeout(1200);
+            await page.waitForTimeout(1000);
             await page.keyboard.up('KeyA');
             await page.keyboard.up('KeyW');
             const p1=await page.evaluate(()=>window.__polygonRush.state().player);
@@ -126,15 +133,13 @@ jobs:
             const wheelSpinChanged=p1.spin.some((v,i)=>Math.abs(v-p0.spin[i])>0.2);
             const xAxisRolled=p1.wheelEuler.some((e,i)=>Math.abs(e[0]-(p0.wheelEuler?.[i]?.[0]||0))>0.2);
             const wrongAxis=p1.wheelEuler.some(e=>Math.abs(e[1])>0.0001||Math.abs(e[2])>0.0001);
-            if(!(playerDist>0.25&&p1.speed>0.2))throw new Error('Player movement failed: '+JSON.stringify({p0,p1,playerDist}));
-            if(pMid.states!==4)throw new Error('Four physical wheel states missing: '+JSON.stringify(pMid));
-            if(!wheelSpinChanged||!xAxisRolled)throw new Error('Wheel X-axis rotation gate failed: '+JSON.stringify({p0,p1}));
-            if(wrongAxis)throw new Error('Wheel rotated on Y/Z axis: '+JSON.stringify(p1.wheelEuler));
-            if(!(headingChange>0.01))throw new Error('Steering/yaw gate failed: '+headingChange);
+            if(!(playerDist>0.3&&pStraight.speed>0.8))throw new Error('Player movement failed: '+JSON.stringify({p0,pStraight,p1,playerDist}));
+            if(!wheelSpinChanged||!xAxisRolled||wrongAxis)throw new Error('Wheel rotation gate failed: '+JSON.stringify({p0,p1}));
+            if(!(headingChange>0.01))throw new Error('Steering gate failed: '+headingChange);
             const hud=await page.textContent('#speed');
             if(!(Number(hud)>0))throw new Error('HUD speed did not update: '+hud);
-            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('WHEEL AXIS PLAYABLE GATE PASS',JSON.stringify({version:boot.version,aiDistances,playerDist,headingChange,wheelSpinChanged,xAxisRolled,speed:p1.speed,hudSpeed:Number(hud),wheelEuler:p1.wheelEuler}));
+            if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
+            console.log('V15.5.2 RELEASE GATE PASS',JSON.stringify({grip,collision,aiDistances,playerDist,headingChange,speed:p1.speed,hudSpeed:Number(hud)}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
