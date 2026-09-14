@@ -1,0 +1,4 @@
+Polygon Rush v14.7 published
+Corner acceleration + yaw response update
+Stable latest path: /polygon-rush/latest/
+Published: 2026-09-14
