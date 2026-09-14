@@ -1,1 +1,1 @@
-Polygon Rush v15.5.42 Grounded Contact + Lighting
+Polygon Rush v16.0.0 Clean Physics Core
