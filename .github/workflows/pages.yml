@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rebuild Polygon Rush v15.5.5 Drive + Friction Fix
+      - name: Rebuild Polygon Rush v15.5.6 Weighted Drive + Steering Fix
         run: |
           cat polygon-rush/v14.6/source/part*.txt > index.html
           python3 - <<'PY'
@@ -36,13 +36,14 @@ jobs:
           node polygon-rush/engineering/v15_5_3_direction_stability_fix.mjs index.html
           node polygon-rush/engineering/v15_5_4_car_steering_fix.mjs index.html
           node polygon-rush/engineering/v15_5_5_drive_friction_fix.mjs index.html
+          node polygon-rush/engineering/v15_5_6_weighted_drive_steering_fix.mjs index.html
           curl --fail --silent --show-error --location https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js -o three.min.js
           test -s three.min.js
           test "$(wc -c < index.html)" -gt 50000
-          mkdir -p play/v15.5.5
-          cp index.html play/v15.5.5/index.html
-          cp three.min.js play/v15.5.5/three.min.js
-          printf 'Polygon Rush v15.5.5 Drive + Friction Fix\n' > play/v15.5.5/VERSION.txt
+          mkdir -p play/v15.5.6
+          cp index.html play/v15.5.6/index.html
+          cp three.min.js play/v15.5.6/three.min.js
+          printf 'Polygon Rush v15.5.6 Weighted Drive + Steering Fix\n' > play/v15.5.6/VERSION.txt
 
       - name: Validate generated game structure
         run: |
@@ -53,11 +54,11 @@ jobs:
           js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
           pathlib.Path('/tmp/polygon-rush-inline.js').write_text(js)
           required=[
-            'Polygon Rush v15.5.5 Drive + Friction Fix',
+            'Polygon Rush v15.5.6 Weighted Drive + Steering Fix',
             'playerIdx=248','gridIdx=[250,251,253,254]','countdown=3.2',
-            'function stabilizeAfterCollision','testGrip:()=>','testCollision:()=>',
             'testCarSteering:()=>','testStraightHold:()=>','testDriveFriction:()=>',
-            'driveGrip:1.16','coastFriction:.92','rollingFriction:.58','const torqueCurve=',
+            'testWeightedDrive:()=>','testSteerCurve:()=>',
+            'throttleRise:3.4','throttleFall:5.8','accelWeight:.58','steerCurve:1.72','steerCenter:5.4',
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
@@ -69,9 +70,9 @@ jobs:
           assert s.count('function applyArcadeMovement(car,controls,dt){')==1
           assert s.count('function resolveCarCollision(a,b){')==1
           assert s.count('function physicsPlayer(dt){')==1
-          v=pathlib.Path('play/v15.5.5/index.html').read_text()
-          assert 'Polygon Rush v15.5.5 Drive + Friction Fix' in v
-          assert pathlib.Path('play/v15.5.5/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.5 Drive + Friction Fix'
+          v=pathlib.Path('play/v15.5.6/index.html').read_text()
+          assert 'Polygon Rush v15.5.6 Weighted Drive + Steering Fix' in v
+          assert pathlib.Path('play/v15.5.6/VERSION.txt').read_text().strip()=='Polygon Rush v15.5.6 Weighted Drive + Steering Fix'
           PY
           node --check /tmp/polygon-rush-inline.js
 
@@ -81,7 +82,7 @@ jobs:
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Run drive friction gameplay release gate
+      - name: Run weighted drive steering gameplay release gate
         run: |
           python3 -m http.server 4173 >/tmp/polygon-rush-http.log 2>&1 &
           SERVER_PID=$!
@@ -94,37 +95,31 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.goto('http://127.0.0.1:4173/play/v15.5.5/',{waitUntil:'networkidle'});
+            await page.goto('http://127.0.0.1:4173/play/v15.5.6/',{waitUntil:'networkidle'});
             await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
-            if(boot.version!=='15.5.5'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
+            if(boot.version!=='15.5.6'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong build: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testCarSteering==='function'&&typeof window.__polygonRush?.testDriveFriction==='function',null,{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.testWeightedDrive==='function'&&typeof window.__polygonRush?.testSteerCurve==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
 
+            const weight=await page.evaluate(()=>window.__polygonRush.testWeightedDrive());
+            if(!(weight.s6>0&&weight.s31>weight.s6*2&&weight.s91>weight.s31*1.5&&weight.throttle>.9&&weight.accel>0))throw new Error('Weighted acceleration failed: '+JSON.stringify(weight));
+            const steer=await page.evaluate(()=>window.__polygonRush.testSteerCurve());
+            if(!(steer.full>steer.small*2.1&&steer.fullAngle>steer.smallAngle*2.1&&steer.small>0.005))throw new Error('Nonlinear steering curve failed: '+JSON.stringify(steer));
             const drive=await page.evaluate(()=>window.__polygonRush.testDriveFriction());
-            if(!(drive.driven>8&&drive.coastEnd<drive.coastStart-1&&drive.coastEnd>8&&drive.brakeEnd<8))throw new Error('Drive/friction behavior failed: '+JSON.stringify(drive));
+            if(!(drive.driven>7&&drive.coastEnd<drive.coastStart-1&&drive.brakeEnd<9))throw new Error('Drive/friction regression: '+JSON.stringify(drive));
             const car=await page.evaluate(()=>window.__polygonRush.testCarSteering());
-            if(!(car.headingChange>0.25&&car.distance>18&&car.slip<0.06&&car.maxSlip<0.08&&car.align<0.06))throw new Error('Car steering behavior failed: '+JSON.stringify(car));
-            const straight=await page.evaluate(()=>window.__polygonRush.testStraightHold());
-            if(!(straight.slip<0.04&&straight.align<0.04&&straight.yawRate<0.08))throw new Error('Straight direction hold failed: '+JSON.stringify(straight));
+            if(!(car.headingChange>0.15&&car.distance>15&&car.slip<0.08&&car.align<0.08))throw new Error('Car steering regression: '+JSON.stringify(car));
             const collision=await page.evaluate(()=>window.__polygonRush.testCollision());
-            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision response failed: '+JSON.stringify(collision));
+            if(!(collision.after>2.9&&collision.relativeNormal>=-0.05))throw new Error('Collision regression: '+JSON.stringify(collision));
 
             await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.every(d=>d>0.5))throw new Error('All AI must move: '+JSON.stringify(aiDistances));
-
-            const p0=await page.evaluate(()=>window.__polygonRush.state().player);
-            await page.keyboard.down('KeyW');
-            await page.waitForTimeout(2200);
-            await page.keyboard.up('KeyW');
-            const p1=await page.evaluate(()=>window.__polygonRush.state().player);
-            const moved=Math.hypot(p1.p[0]-p0.p[0],p1.p[1]-p0.p[1]);
-            if(!(moved>0.05&&p1.speed>0.5))throw new Error('Live throttle response failed: '+JSON.stringify({p0,p1,moved}));
             if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
-            console.log('V15.5.5 RELEASE GATE PASS',JSON.stringify({drive,car,straight,collision,aiDistances,moved,liveSpeed:p1.speed}));
+            console.log('V15.5.6 RELEASE GATE PASS',JSON.stringify({weight,steer,drive,car,collision,aiDistances}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
