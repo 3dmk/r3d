@@ -1,50 +1,103 @@
-name: Deploy Polygon Rush Production
+name: Promote Polygon Rush v15.5.35
 on:
   push:
     branches: [main]
     paths:
-      - 'polygon-rush/production/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  deploy:
+  promote:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate committed production snapshot
+      - name: Vendor real CC0 assets and glTF runtime
         run: |
           set -euo pipefail
-          test -f polygon-rush/production/index.html
-          test -f polygon-rush/production/three.min.js
-          test -f polygon-rush/production/VERSION.txt
-          test -f polygon-rush/production/BUILD.json
-          test -f polygon-rush/production/_headers
+          ROOT=polygon-rush/production
+          mkdir -p "$ROOT/vendor" "$ROOT/assets/models"
+          curl -fsSL https://raw.githubusercontent.com/mrdoob/three.js/r152/build/three.module.js -o "$ROOT/vendor/three.module.js"
+          curl -fsSL https://raw.githubusercontent.com/mrdoob/three.js/r152/examples/jsm/loaders/GLTFLoader.js -o "$ROOT/vendor/GLTFLoader.js"
+          curl -fsSL https://raw.githubusercontent.com/mrdoob/three.js/r152/examples/jsm/utils/BufferGeometryUtils.js -o "$ROOT/vendor/BufferGeometryUtils.js"
+          sed -i "s#from 'three';#from './three.module.js';#g" "$ROOT/vendor/GLTFLoader.js" "$ROOT/vendor/BufferGeometryUtils.js"
+          sed -i "s#from '../utils/BufferGeometryUtils.js';#from './BufferGeometryUtils.js';#" "$ROOT/vendor/GLTFLoader.js"
+          BASE=https://raw.githubusercontent.com/syuhei176/ai-game-assets/main/models/environment
+          for f in tree_pine tree_oak rock_large rock_medium rock_small building_house building_tower; do curl -fsSL "$BASE/$f.glb" -o "$ROOT/assets/models/$f.glb"; done
+          KBASE=https://raw.githubusercontent.com/KenneyNL/Starter-Kit-Racing/main/models
+          curl -fsSL "$KBASE/vehicle-truck-yellow.glb" -o "$ROOT/assets/models/player_car.glb"
+          curl -fsSL "$KBASE/decoration-tents.glb" -o "$ROOT/assets/models/decoration_tents.glb"
+          curl -fsSL "$KBASE/decoration-forest.glb" -o "$ROOT/assets/models/decoration_forest.glb"
+          for f in "$ROOT"/assets/models/*.glb; do test $(stat -c%s "$f") -gt 1000; done
+          cat > "$ROOT/assets/THIRD_PARTY_ASSETS.md" <<'EOF'
+          # Polygon Rush third-party production assets
+
+          All runtime 3D assets in this folder are vendored locally so the game does not depend on a third-party CDN at play time.
+
+          - Kenney Nature Kit / City Kit-derived environment GLBs (`tree_*`, `rock_*`, `building_*`) sourced from `syuhei176/ai-game-assets`, whose manifest identifies them as Kenney CC0 assets.
+          - Kenney Starter Kit Racing vehicle and decoration GLBs (`player_car`, `decoration_tents`, `decoration_forest`) sourced from `KenneyNL/Starter-Kit-Racing`; its README states included 3D models and sounds are CC0.
+          - Three.js r152 GLTFLoader, BufferGeometryUtils and three.module.js are MIT-licensed Three.js runtime files.
+
+          Source manifests:
+          https://github.com/syuhei176/ai-game-assets
+          https://github.com/KenneyNL/Starter-Kit-Racing
+          https://github.com/mrdoob/three.js/tree/r152
+          EOF
+      - name: Apply v15.5.35 real asset migration
+        run: node polygon-rush/engineering/v15_5_35_real_asset_pipeline.mjs polygon-rush/production/index.html
+      - name: Validate JavaScript syntax
+        run: |
           python3 - <<'PY'
-          import json, pathlib, hashlib
-          root=pathlib.Path('polygon-rush/production')
-          meta=json.loads((root/'BUILD.json').read_text())
-          assert meta['deploymentModel']=='committed-static-production'
-          assert meta['releaseGate']=='browser-gated-success'
-          assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
-          assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
-          assert (root/'index.html').stat().st_size > 50000
-          assert (root/'three.min.js').stat().st_size > 500000
-          print('Polygon Rush static production validation PASS', meta['productionVersion'])
+          from pathlib import Path
+          import re
+          s=Path('polygon-rush/production/index.html').read_text()
+          Path('/tmp/pr-inline.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)))
           PY
+          node --check /tmp/pr-inline.js
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Browser real-asset Free Roam gate
+        run: |
+          python3 -m http.server 4173 --directory polygon-rush/production >/tmp/pr-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          cat >/tmp/v15535.cjs <<'JS'
+          const {chromium}=require(process.cwd()+'/node_modules/playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}});const errs=[];p.on('pageerror',e=>errs.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);const menu=await p.evaluate(()=>[...document.querySelector('#track').options].map(o=>o.value));if(menu.length!==1||menu[0]!=='freeroam')throw new Error('Free Roam only gate '+JSON.stringify(menu));await p.click('#start');await p.waitForFunction(()=>window.__polygonRush?.version==='15.5.35'&&window.__polygonRush?.startOk===true);await p.waitForFunction(()=>window.__polygonRush?.realAssets?.().ready===true,{timeout:20000});const r=await p.evaluate(()=>({assets:window.__polygonRush.realAssets(),mode:window.__polygonRush.modeState(),acc:window.__polygonRush.testAccelerationResponse(),car:!!window.__polygonRush.state().hasPlayer}));if(!r.assets.car||r.assets.count<25||r.assets.failed.length||!r.mode.freeRoamMode||r.mode.aiCount!==0||r.acc.v1<7.5||r.acc.v2<16||!r.car)throw new Error('v15.5.35 gate '+JSON.stringify(r));if(errs.length)throw new Error(errs.join(' | '));console.log('V15.5.35 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/v15535.cjs
+      - name: Finalize production metadata
+        run: |
+          printf 'Polygon Rush v15.5.35 Real Asset Free Roam\n' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          r=pathlib.Path('polygon-rush/production');m=json.loads((r/'BUILD.json').read_text())
+          m['productionVersion']='15.5.35';m['parentProductionVersion']='15.5.34';m['releaseGate']='browser-gated-success';m['deploymentModel']='committed-static-production';m['developmentScope']='free-roam-only'
+          m['features']=list(dict.fromkeys(m.get('features',[])+['local-gltf-runtime','real-cc0-model-assets','real-player-vehicle-model','real-environment-models','optimized-collision-proxies','local-third-party-assets','stylized-pbr-model-materials']))
+          m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();(r/'BUILD.json').write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit certified production snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polygon-rush/production/index.html polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json polygon-rush/production/vendor polygon-rush/production/assets
+          git commit -m "Promote Polygon Rush v15.5.35 real asset Free Roam [skip ci]"
+          git push origin HEAD:main
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy committed production to GitHub Pages root
+      - name: Deploy v15.5.35 to root site
         id: deployment
         uses: actions/deploy-pages@v4
