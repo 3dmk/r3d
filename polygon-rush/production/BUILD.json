@@ -1,13 +1,15 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.17",
+  "productionVersion": "15.5.29",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117",
+  "indexSha256": "aee683153cc49f166d7b359ecb38827796d03d363d03f21ddc70893a74870fec",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
-  "deploymentModel": "committed-static-production"
+  "deploymentModel": "committed-static-production",
+  "parentProductionVersion": "15.5.17",
+  "handlingFix": "steer-under-power"
 }
