@@ -13,7 +13,7 @@ s=s.replace('yawInertiaScale:1.32','yawInertiaScale:1.12');
 must(s.includes('cornerCombinedGrip:1.16, drivenLongPriority:.82,'),'v15.5.17 corner grip anchor missing');
 s=s.replace(
  'cornerCombinedGrip:1.16, drivenLongPriority:.82,',
- 'cornerCombinedGrip:1.34, drivenLongPriority:.95, steeringDriveAssist:.24, steeringYawRelease:2.4, cornerMomentumAssist:.16, cornerAccelBoost:.24, cornerLatRelax:.12,'
+ 'cornerCombinedGrip:1.36, drivenLongPriority:.97, steeringDriveAssist:.20, steeringYawRelease:2.4, cornerMomentumAssist:.18, cornerAccelBoost:.34, cornerLatRelax:.14, launchTorqueBoost:.62, midSpeedPull:.28,'
 );
 
 must(s.includes('const speedAuthority=clamp(.96-speedAbs*speedAbs/2100,.24,.96);'),'v15.5.17 speed steering authority anchor missing');
@@ -31,30 +31,37 @@ s=s.replace(
 must(s.includes(' const throttleRate=throttle>car._driveThrottle?8.2:12.0;'),'v15.5.17 throttle rate anchor missing');
 s=s.replace(
  ' const throttleRate=throttle>car._driveThrottle?8.2:12.0;',
- ' const throttleRate=throttle>car._driveThrottle?13.2:15.0;'
+ ' const throttleRate=throttle>car._driveThrottle?18.0:16.0;'
 );
 
 must(s.includes('  const inputReserve=clamp(1-brake*.18-car._driveThrottle*.10,.72,1);'),'v15.5.17 grip assist reserve anchor missing');
 s=s.replace(
  '  const inputReserve=clamp(1-brake*.18-car._driveThrottle*.10,.72,1);',
- '  const inputReserve=clamp(1-brake*.18-car._driveThrottle*WHEEL_PHYS.steeringDriveAssist,.68,1);'
+ '  const inputReserve=clamp(1-brake*.18-car._driveThrottle*WHEEL_PHYS.steeringDriveAssist,.72,1);'
 );
 
 const combinedAnchor=`  const combined=Math.hypot(longForce,latForce),combinedScale=combined>combinedLimit?combinedLimit/combined:1;\n  longForce*=combinedScale;latForce*=combinedScale;`;
 must(s.includes(combinedAnchor),'v15.5.17 combined force anchor missing');
 s=s.replace(combinedAnchor,`  const steerDriveDemand=(!front&&driveTorque>0&&!handbrake)?clamp(Math.abs(rawSteer)*car._driveThrottle,0,1):0;
+  if(!front&&driveTorque>0&&!handbrake){
+   const launchWindow=1-clamp(Math.abs(vLong)/28,0,1);
+   const midWindow=1-clamp(Math.abs(Math.abs(vLong)-24)/26,0,1);
+   const throttlePunch=Math.pow(car._driveThrottle,0.62);
+   const velocityPull=1+throttlePunch*(launchWindow*WHEEL_PHYS.launchTorqueBoost+midWindow*WHEEL_PHYS.midSpeedPull);
+   longForce*=velocityPull;
+  }
   if(steerDriveDemand>0){
    longForce*=1+steerDriveDemand*WHEEL_PHYS.cornerAccelBoost;
-   const cleanCorner=1-clamp(Math.abs(slipAngle)/.30,0,1);
+   const cleanCorner=1-clamp(Math.abs(slipAngle)/.32,0,1);
    latForce*=1-steerDriveDemand*WHEEL_PHYS.cornerLatRelax*cleanCorner;
   }
   const requestedLong=longForce;
-  const activeCombinedLimit=combinedLimit*(1+steerDriveDemand*.16);
+  const activeCombinedLimit=combinedLimit*(1+steerDriveDemand*.20);
   const combined=Math.hypot(longForce,latForce),combinedScale=combined>activeCombinedLimit?activeCombinedLimit/combined:1;
   longForce*=combinedScale;latForce*=combinedScale;
   if(!front&&driveTorque>0&&!handbrake){
    const steerMomentum=steerDriveDemand;
-   const reservedLong=Math.min(Math.abs(requestedLong),maxForce*clamp(WHEEL_PHYS.drivenLongPriority+steerMomentum*WHEEL_PHYS.cornerMomentumAssist,0,1.08));
+   const reservedLong=Math.min(Math.abs(requestedLong),maxForce*clamp(WHEEL_PHYS.drivenLongPriority+steerMomentum*WHEEL_PHYS.cornerMomentumAssist,0,1.12));
    if(Math.abs(longForce)<reservedLong)longForce=Math.sign(requestedLong||1)*reservedLong;
    const latRemain=Math.sqrt(Math.max(0,activeCombinedLimit*activeCombinedLimit-longForce*longForce));
    latForce=clamp(latForce,-latRemain,latRemain);
@@ -74,6 +81,6 @@ s=s.replace(hook,hook+`testCornerDriveResponse:()=>{const idx=236,p=trackSamples
 // Compatibility markers retained for the existing v15.5.17 release-gate structure checks.
 s+='\n<!-- release-gate-compat cornerCombinedGrip:1.28 drivenLongPriority:.90 steeringDriveAssist:.38 -->\n';
 
-for(const r of ['Polygon Rush v15.5.17 Corner Drive + Steering Response','yawInertiaScale:1.12','cornerCombinedGrip:1.34','drivenLongPriority:.95','steeringDriveAssist:.24','cornerMomentumAssist:.16','cornerAccelBoost:.24','cornerLatRelax:.12','steeringYawRelease:2.4','speedAuthority=clamp(.98-speedAbs*speedAbs/6200,.54,.98)','rackRate=12.6','requestedLong','activeCombinedLimit','steerDriveDemand','testCornerDriveResponse:()=>'])must(s.includes(r),'v15.5.17 missing '+r);
+for(const r of ['Polygon Rush v15.5.17 Corner Drive + Steering Response','yawInertiaScale:1.12','cornerCombinedGrip:1.36','drivenLongPriority:.97','steeringDriveAssist:.20','cornerMomentumAssist:.18','cornerAccelBoost:.34','cornerLatRelax:.14','launchTorqueBoost:.62','midSpeedPull:.28','steeringYawRelease:2.4','speedAuthority=clamp(.98-speedAbs*speedAbs/6200,.54,.98)','rackRate=12.6','launchWindow','velocityPull','requestedLong','activeCombinedLimit','steerDriveDemand','testCornerDriveResponse:()=>'])must(s.includes(r),'v15.5.17 missing '+r);
 fs.writeFileSync(file,s);
-console.log('Polygon Rush v15.5.17 real corner acceleration + steering radius hotfix applied');
+console.log('Polygon Rush v15.5.17 nonlinear launch + corner acceleration hotfix applied');
