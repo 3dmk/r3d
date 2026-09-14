@@ -12,11 +12,13 @@ s=s.replace('const speedAuthority=clamp(.98-speedAbs*speedAbs/6200,.54,.98);','c
 must(s.includes('const rackRate=12.6*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.82,1.18);'),'rack response anchor missing');
 s=s.replace('const rackRate=12.6*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.82,1.18);','const rackRate=16.5*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.86,1.22);');
 
-if(s.includes('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.48);')){
+if(s.includes('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.14);')){
+ s=s.replace('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.14);','const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.22);');
+}else if(s.includes('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.48);')){
  s=s.replace('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.48);','const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.22);');
 }else if(s.includes('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.55);')){
  s=s.replace('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.55);','const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.22);');
-}else throw new Error('steer curve anchor missing');
+}else if(!s.includes('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.22);')) throw new Error('steer curve anchor missing');
 
 // Keep release-gate compatibility marker for the prior static rack check.
 s+='\n<!-- steering-release-compat rackRate=12.6 -->\n';
