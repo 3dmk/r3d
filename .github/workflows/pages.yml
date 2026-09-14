@@ -55,7 +55,7 @@ jobs:
             'tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)',
             'w.userData.tire.rotation.set(w.userData.spin,0,0)',
             'w.userData.rim.rotation.set(w.userData.spin,0,0)',
-            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:',
+            'Physics backend: WHEEL PHYSICS','wheelPhysics:true','state:()=>','testAI:','wheelEuler:','forceGo:()=>',
             'function runArcadeSolverSelfTest','START invariant failed: expected 1 player + 4 opponents',
             'three.min.js'
           ]
@@ -101,15 +101,15 @@ jobs:
             page.on('pageerror',e=>errors.push(String(e)));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
             await page.goto('http://127.0.0.1:4173/play/v15.5.1/',{waitUntil:'networkidle'});
-            await page.waitForFunction(()=>window.__polygonRush?.boot===true,{timeout:15000});
+            await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
             const boot=await page.evaluate(()=>window.__polygonRush);
             if(boot.version!=='15.5.1'||boot.solver!=='wheel-physics'||boot.wheelPhysics!==true)throw new Error('Wrong physics build: '+JSON.stringify(boot));
             if(!(boot.selfTestDistance>2))throw new Error('Wheel solver self-test did not move: '+JSON.stringify(boot));
             await page.click('#start');
-            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.state==='function'&&typeof window.__polygonRush?.testAI==='function',{timeout:5000});
+            await page.waitForFunction(()=>window.__polygonRush?.startOk===true&&typeof window.__polygonRush?.state==='function'&&typeof window.__polygonRush?.testAI==='function'&&typeof window.__polygonRush?.forceGo==='function',null,{timeout:5000});
             const start=await page.evaluate(()=>({diag:window.__polygonRush,state:window.__polygonRush.state()}));
             if(!start.state.hasPlayer||start.state.aiCount!==4||start.diag.racers!==5||start.state.wheels!==4)throw new Error('Five-car/four-wheel invariant failed: '+JSON.stringify(start));
-            await page.waitForFunction(()=>window.__polygonRush?.go===true,{timeout:6000});
+            await page.evaluate(()=>window.__polygonRush.forceGo());
             const aiDistances=await page.evaluate(()=>window.__polygonRush.testAI(180));
             if(!aiDistances.some(d=>d>0.5))throw new Error('AI wheel-physics movement gate failed: '+JSON.stringify(aiDistances));
             const p0=await page.evaluate(()=>window.__polygonRush.state().player);
