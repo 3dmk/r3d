@@ -14,8 +14,8 @@ s=s.replaceAll('v15.5.10 • WHEEL STEERING + CG PHYSICS','v15.5.11 • SLIP TRA
 s=s.replaceAll("version:'15.5.10'","version:'15.5.11'");
 
 s=s.replace('vehicleLength:4.45, vehicleWidth:2.15, cgHeight:.62, cgZ:-.08, yawInertiaScale:1.0, steerRackRate:7.0,',
-`vehicleLength:4.45, vehicleWidth:2.15, cgHeight:.56, cgZ:-.08, yawInertiaScale:1.0, steerRackRate:12.0,
- wheelInertia:6.5, driveWheelTorque:2350, brakeWheelTorque:3200, longSlipStiffness:6.0, absSlip:.14, tcSlip:.24,`);
+`vehicleLength:4.45, vehicleWidth:2.15, cgHeight:.54, cgZ:-.08, yawInertiaScale:1.0, steerRackRate:12.0,
+ wheelInertia:6.5, driveWheelTorque:2350, brakeWheelTorque:2600, longSlipStiffness:6.0, absSlip:.12, tcSlip:.24,`);
 
 replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls,dt){
  ensureMoveState(car);dt=Math.min(dt,.02);
@@ -25,7 +25,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
  const L=WHEEL_PHYS.wheelBase,T=WHEEL_PHYS.track,R=WHEEL_PHYS.wheelRadius,g=9.81;
  const inertia=mass*(WHEEL_PHYS.vehicleLength*WHEEL_PHYS.vehicleLength+WHEEL_PHYS.vehicleWidth*WHEEL_PHYS.vehicleWidth)/12*WHEEL_PHYS.yawInertiaScale;
  const lv0=localVelocity(car),speedAbs=Math.abs(lv0.long),rawSteer=clamp(controls.steer||0,-1,1);
- const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.12);
+ const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.10);
  const speedAuthority=clamp(.995-speedAbs*speedAbs/3000,.32,.995);
  const rackTarget=steerCurve*WHEEL_PHYS.steerMax*speedAuthority;
  const rackRate=WHEEL_PHYS.steerRackRate*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.78,1.15);
@@ -61,17 +61,16 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
   const normal=Math.max(mass*g*.08,axleDynamic*.5+sideTransfer);
   const surfaceGrip=clamp(terrainGrip(sample.type),.30,1.35)*(1-car.suspensionDamage*.32);
   const loadRatio=normal/(mass*g*.25);
-  const axleGripBias=front?.99:1.08;
+  const axleGripBias=front?.99:1.10;
   const mu=WHEEL_PHYS.tireMu*surfaceGrip*axleGripBias*clamp(1.04-(loadRatio-1)*.07,.88,1.10);
   const maxForce=Math.max(850,normal*mu);
   const slipAngle=Math.atan2(vLat,Math.abs(vLong)+1.7);
-  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?.97:1.14);
+  const brakeRearSupport=!front?1+brake*.20:1;
+  const cornerK=WHEEL_PHYS.tireCorner*clamp(loadRatio,.55,1.55)*(front?.97:1.16)*brakeRearSupport;
   let latForce=-Math.tanh(slipAngle*4.2)*cornerK;
 
   let omega=Number.isFinite(car._wheelOmega[wi])?car._wheelOmega[wi]:vLong/R;
   if(Math.abs(omega)<.001&&Math.abs(vLong)>.25)omega=vLong/R;
-  const slipDen0=Math.max(3.5,Math.abs(vLong),Math.abs(omega*R));
-  const baseSlip=(omega*R-vLong)/slipDen0;
   let driveTorque=0;
   if(!front&&car._driveThrottle>.001){
    const torqueCurve=clamp(1.15-Math.abs(vLong)/94,.42,1.08);
@@ -84,9 +83,9 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
    if(omegaDrive>omegaLimit){omegaDrive=omegaLimit;driveTorque=Math.max(0,(omegaDrive-omega)*WHEEL_PHYS.wheelInertia/Math.max(dt,.001))}
   }
 
-  const brakeLoadScale=clamp(normal/(mass*g*.25),.68,1.32);
-  let brakeTorque=brake*WHEEL_PHYS.brakeWheelTorque*.5*brakeLoadScale;
-  if(handbrake&&!front)brakeTorque=Math.max(brakeTorque,WHEEL_PHYS.brakeWheelTorque*.72);
+  const brakeBias=front?.66:.34;
+  let brakeTorque=brake*WHEEL_PHYS.brakeWheelTorque*brakeBias;
+  if(handbrake&&!front)brakeTorque=Math.max(brakeTorque,WHEEL_PHYS.brakeWheelTorque*.78);
   const rotSign=Math.abs(omegaDrive)>.30?Math.sign(omegaDrive):(Math.abs(vLong)>.1?Math.sign(vLong):1);
   let omegaFree=omegaDrive-(rotSign*brakeTorque/WHEEL_PHYS.wheelInertia)*dt;
   if(brake>.001&&!handbrake&&Math.abs(vLong)>1.0){
@@ -130,7 +129,7 @@ replaceFunction('applyArcadeMovement',`function applyArcadeMovement(car,controls
 
 const hook="window.__polygonRush={version:'15.5.11',racers:5,solver:'wheel-physics',startOk:true,wheelPhysics:true,";
 must(s.includes(hook),'v15.5.11 diagnostic hook missing');
-s=s.replace(hook,hook+`testTractionBrakeSteer:()=>{const idx=238,p=trackSamples[idx].clone(),h=trackHeading(idx),mk=(v=0)=>({mass:1180,pos:p.clone(),vel:new THREE.Vector3(Math.sin(h)*v,0,Math.cos(h)*v),heading:h,speed:v,steer:0,health:100,nitro:0,suspensionDamage:0,engineDamage:0,steeringDamage:0,brakeDamage:0,vy:0,airborne:false,airTime:0,yawRate:0,g:{userData:{}}});const acc=mk(0);let maxDriveSlip=0;for(let i=0;i<120;i++){applyArcadeMovement(acc,{throttle:1,brake:0,steer:0,handbrake:0,nitro:false},1/60);for(const w of acc._wheelPhysics||[])if(w.driveTorque>0)maxDriveSlip=Math.max(maxDriveSlip,Math.abs(w.slipRatio||0))}const steerCar=mk(18);for(let i=0;i<24;i++)applyArcadeMovement(steerCar,{throttle:.25,brake:0,steer:.55,handbrake:0,nitro:false},1/60);const steerAngle=Math.abs(steerCar._steerAngle||0),steerHeading=Math.abs(wrapAngle(steerCar.heading-h));const brakeCar=mk(24),brakeStart=Math.abs(localVelocity(brakeCar).long);let maxBrakeSlip=0,frontLat=0;for(let i=0;i<72;i++){applyArcadeMovement(brakeCar,{throttle:0,brake:.72,steer:.38,handbrake:0,nitro:false},1/60);for(let wi=0;wi<(brakeCar._wheelPhysics||[]).length;wi++){const w=brakeCar._wheelPhysics[wi];if(w.brakeTorque>0)maxBrakeSlip=Math.max(maxBrakeSlip,Math.abs(w.slipRatio||0));if(wi===1||wi===3)frontLat=Math.max(frontLat,Math.abs(w.latForce||0))}}return {accelSpeed:Math.abs(localVelocity(acc).long),maxDriveSlip,steerAngle,steerHeading,brakeStart,brakeEnd:Math.abs(localVelocity(brakeCar).long),brakeHeading:Math.abs(wrapAngle(brakeCar.heading-h)),maxBrakeSlip,frontLat}},`);
+s=s.replace(hook,hook+`testTractionBrakeSteer:()=>{const idx=238,p=trackSamples[idx].clone(),h=trackHeading(idx),mk=(v=0)=>({mass:1180,pos:p.clone(),vel:new THREE.Vector3(Math.sin(h)*v,0,Math.cos(h)*v),heading:h,speed:v,steer:0,health:100,nitro:0,suspensionDamage:0,engineDamage:0,steeringDamage:0,brakeDamage:0,vy:0,airborne:false,airTime:0,yawRate:0,g:{userData:{}}});const acc=mk(0);let maxDriveSlip=0;for(let i=0;i<120;i++){applyArcadeMovement(acc,{throttle:1,brake:0,steer:0,handbrake:0,nitro:false},1/60);for(const w of acc._wheelPhysics||[])if(w.driveTorque>0)maxDriveSlip=Math.max(maxDriveSlip,Math.max(0,w.slipRatio||0))}const steerCar=mk(18);for(let i=0;i<24;i++)applyArcadeMovement(steerCar,{throttle:.25,brake:0,steer:.55,handbrake:0,nitro:false},1/60);const steerAngle=Math.abs(steerCar._steerAngle||0),steerHeading=Math.abs(wrapAngle(steerCar.heading-h));const brakeCar=mk(24),brakeStart=Math.hypot(brakeCar.vel.x,brakeCar.vel.z);let maxBrakeLock=0,frontLat=0;for(let i=0;i<72;i++){applyArcadeMovement(brakeCar,{throttle:0,brake:.72,steer:.30,handbrake:0,nitro:false},1/60);for(let wi=0;wi<(brakeCar._wheelPhysics||[]).length;wi++){const w=brakeCar._wheelPhysics[wi];if(w.brakeTorque>0)maxBrakeLock=Math.max(maxBrakeLock,Math.max(0,-(w.slipRatio||0)));if(wi===1||wi===3)frontLat=Math.max(frontLat,Math.abs(w.latForce||0))}}return {accelSpeed:Math.abs(localVelocity(acc).long),maxDriveSlip,steerAngle,steerHeading,brakeStart,brakeEnd:Math.hypot(brakeCar.vel.x,brakeCar.vel.z),brakeHeading:Math.abs(wrapAngle(brakeCar.heading-h)),brakeBodySlip:brakeCar.slip||0,maxBrakeLock,frontLat}},`);
 
-for(const r of ['Polygon Rush v15.5.11 Slip Traction + Brake Physics','wheelInertia:6.5','driveWheelTorque:2350','brakeWheelTorque:3200','longSlipStiffness:6.0','absSlip:.14','tcSlip:.24','slipRatio','testTractionBrakeSteer:()=>'])must(s.includes(r),'v15.5.11 missing '+r);
+for(const r of ['Polygon Rush v15.5.11 Slip Traction + Brake Physics','wheelInertia:6.5','driveWheelTorque:2350','brakeWheelTorque:2600','longSlipStiffness:6.0','absSlip:.12','tcSlip:.24','slipRatio','testTractionBrakeSteer:()=>'])must(s.includes(r),'v15.5.11 missing '+r);
 fs.writeFileSync(file,s);console.log('Polygon Rush v15.5.11 slip traction + brake physics applied');
