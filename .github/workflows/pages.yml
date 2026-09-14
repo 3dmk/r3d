@@ -1,52 +1,81 @@
-name: Deploy Polygon Rush Production
+name: Promote Polygon Rush v15.5.38
 on:
   push:
     branches: [main]
     paths:
-      - 'polygon-rush/production/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  deploy:
+  promote:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate committed production snapshot
+      - name: Vendor real racing ramp meshes
         run: |
           set -euo pipefail
-          test -f polygon-rush/production/index.html
-          test -f polygon-rush/production/three.min.js
-          test -f polygon-rush/production/VERSION.txt
-          test -f polygon-rush/production/BUILD.json
-          test -f polygon-rush/production/_headers
-          test -f polygon-rush/production/assets/models/player_body.glb
-          test -f polygon-rush/production/assets/models/player_wheel.glb
-          test -f polygon-rush/production/vendor/GLTFLoader.js
+          ROOT=polygon-rush/production/assets/models
+          BASE='https://raw.githubusercontent.com/KenneyNL/Starter-Kit-Racing/main/models'
+          curl -fsSL "$BASE/track-bump.glb" -o "$ROOT/track_bump.glb"
+          curl -fsSL "$BASE/track-straight.glb" -o "$ROOT/track_straight.glb"
+          test $(stat -c%s "$ROOT/track_bump.glb") -gt 10000
+          test $(stat -c%s "$ROOT/track_straight.glb") -gt 10000
+      - name: Apply v15.5.38 real ramp mesh surface and lighting
+        run: node polygon-rush/engineering/v15_5_38_real_ramps_mesh_surface_lighting.mjs polygon-rush/production/index.html
+      - name: Validate JavaScript syntax
+        run: |
           python3 - <<'PY'
-          import json, pathlib, hashlib
-          root=pathlib.Path('polygon-rush/production')
-          meta=json.loads((root/'BUILD.json').read_text())
-          assert meta['deploymentModel']=='committed-static-production'
-          assert meta['releaseGate']=='browser-gated-success'
-          assert meta['developmentScope']=='free-roam-only'
-          assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
-          assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
-          print('Polygon Rush static production validation PASS', meta['productionVersion'])
+          from pathlib import Path
+          import re
+          s=Path('polygon-rush/production/index.html').read_text()
+          Path('/tmp/pr-inline.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)))
           PY
+          node --check /tmp/pr-inline.js
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Browser ramp collision and shadow gate
+        run: |
+          python3 -m http.server 4173 --directory polygon-rush/production >/tmp/pr-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          cat >/tmp/v15538.cjs <<'JS'
+          const {chromium}=require(process.cwd()+'/node_modules/playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:720}}),errs=[];p.on('pageerror',e=>errs.push(String(e)));await p.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__polygonRush?.boot===true);await p.click('#start');await p.waitForFunction(()=>window.__polygonRush?.version==='15.5.38'&&window.__polygonRush?.startOk===true);await p.waitForFunction(()=>window.__polygonRush?.realAssets?.().ready===true,{timeout:20000});const r=await p.evaluate(()=>({a:window.__polygonRush.realAssets(),r:window.__polygonRush.rampSurface(),c:window.__polygonRush.freeRoamMeshCollision(),m:window.__polygonRush.modeState(),acc:window.__polygonRush.testAccelerationResponse()}));if(r.a.failed.length||!r.a.car||r.r.rampCount<4||r.r.triangles<20||r.r.hits<8||r.r.heightRange<.15||r.r.meshes<4||r.r.shadowMeshes!==r.r.meshes||!r.r.shadowEnabled||!r.r.sunShadow||r.r.surfaceColliders!==0||r.r.visibleRideablePrimitives!==0||!r.m.freeRoamMode||r.m.aiCount!==0||r.acc.v1<7.5||r.acc.v2<16)throw new Error('v15.5.38 gate '+JSON.stringify(r));if(errs.length)throw new Error(errs.join(' | '));console.log('V15.5.38 PASS',JSON.stringify(r));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/v15538.cjs
+      - name: Finalize production metadata
+        run: |
+          printf 'Polygon Rush v15.5.38 Real Ramps + Mesh Surface + Lighting\n' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          r=pathlib.Path('polygon-rush/production');m=json.loads((r/'BUILD.json').read_text())
+          m['productionVersion']='15.5.38';m['parentProductionVersion']='15.5.37';m['releaseGate']='browser-gated-success';m['deploymentModel']='committed-static-production';m['developmentScope']='free-roam-only'
+          m['features']=list(dict.fromkeys(m.get('features',[])+['imported-track-bump-ramps','imported-track-slope','triangle-mesh-ramp-wheel-surface','no-ramp-collision-plane','2048-directional-shadows','per-object-cast-receive-shadows','rebalanced-hemisphere-light']))
+          m['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();(r/'BUILD.json').write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit certified production snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polygon-rush/production polygon-rush/engineering/v15_5_38_real_ramps_mesh_surface_lighting.mjs
+          git commit -m "Promote Polygon Rush v15.5.38 real ramps and mesh surfaces [skip ci]"
+          git push origin HEAD:main
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy committed production to GitHub Pages root
+      - name: Deploy v15.5.38 to root site
         id: deployment
         uses: actions/deploy-pages@v4
