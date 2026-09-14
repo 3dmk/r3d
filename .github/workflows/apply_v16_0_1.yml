@@ -1,0 +1,47 @@
+name: Apply Polygon Rush v16.0.1 New Car Collision Alignment
+on:
+  push:
+    branches: [main]
+    paths: ['polygon-rush/engineering/v16_0_1_new_car_collision_alignment.mjs']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v16.0.1
+        run: node polygon-rush/engineering/v16_0_1_new_car_collision_alignment.mjs polygon-rush/production/index.html
+      - name: Validate clean runtime
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          for x in ['v16.0.1','visualCollisionMatched:true','obbAabbCollision:true','CAR={width:1.84,length:4.28']:
+            assert x in s,x
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s)
+          pathlib.Path('/tmp/pr.mjs').write_text('\n'.join(x for x in blocks if x.strip()))
+          PY
+          node --check /tmp/pr.mjs
+      - name: Update production metadata
+        run: |
+          printf '%s\n' 'Polygon Rush v16.0.1 New Car + Collision Alignment' > polygon-rush/production/VERSION.txt
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          root=pathlib.Path('polygon-rush/production');p=root/'BUILD.json';m=json.loads(p.read_text())
+          m['productionVersion']='16.0.1';m['parentProductionVersion']='16.0.0';m['releaseGate']='clean-core-static-validated';m['physicsAuthority']='single-js-rigid-body';m['handlingFix']='matched-car-obb-collision'
+          m['indexSha256']=hashlib.sha256((root/'index.html').read_bytes()).hexdigest();m['threeSha256']=hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()
+          feats=m.setdefault('features',[])
+          for x in ['new-proportion-matched-car','visual-collision-dimensions-unified','obb-vs-aabb-obstacle-collision','corner-only-collision-removed']:
+            if x not in feats:feats.append(x)
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          PY
+      - name: Commit production
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production
+          git commit -m 'Promote Polygon Rush v16.0.1 new car collision alignment' || exit 0
+          git push
