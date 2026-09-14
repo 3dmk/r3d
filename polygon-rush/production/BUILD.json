@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "16.0.1",
+  "productionVersion": "16.0.2",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "clean-core-static-validated",
-  "indexSha256": "3e08ecfbfc705282e748d2b9f9949298dcd8f04ba88b243c4fe831ce6b146bb1",
+  "indexSha256": "2c6deed9082e153d5d64618b181cafd3f8265e986f01db8a6a7feaffc0df85e0",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "16.0.0",
+  "parentProductionVersion": "16.0.1",
   "handlingFix": "matched-car-obb-collision",
   "features": [
     "clean-production-runtime",
@@ -30,7 +30,12 @@
     "new-proportion-matched-car",
     "visual-collision-dimensions-unified",
     "obb-vs-aabb-obstacle-collision",
-    "corner-only-collision-removed"
+    "corner-only-collision-removed",
+    "larger-0.47m-wheels",
+    "lighter-980kg-chassis",
+    "lower-rotational-inertia",
+    "retuned-suspension",
+    "reduced-drag-load"
   ],
   "developmentScope": "free-roam-only",
   "physicsAuthority": "single-js-rigid-body"
