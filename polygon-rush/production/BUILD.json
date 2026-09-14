@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "product": "Polygon Rush",
+  "productionVersion": "15.5.17",
+  "sourceWorkflowRun": 34827164756,
+  "sourceWorkflowRunNumber": 220,
+  "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
+  "sourceArtifactId": 10340434446,
+  "releaseGate": "browser-gated-success",
+  "indexSha256": "7dae2a731fcde79b8e67f44babe2f7af598327e0072b81516817b8861fd7f117",
+  "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
+  "deploymentModel": "committed-static-production"
+}
