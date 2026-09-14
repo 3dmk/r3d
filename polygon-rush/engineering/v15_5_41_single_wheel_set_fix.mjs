@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+const file=process.argv[2]||'polygon-rush/production/index.html';
+let s=fs.readFileSync(file,'utf8');
+const must=(c,m)=>{if(!c)throw new Error(m)};
+s=s.replaceAll('Polygon Rush v15.5.40 3D World Contact','Polygon Rush v15.5.41 Single Wheel Set');
+s=s.replaceAll('v15.5.40 • 3D WORLD CONTACT','v15.5.41 • SINGLE WHEEL SET');
+s=s.replaceAll("version:'15.5.40'","version:'15.5.41'");
+const anchor="body.position.y=.20;body.name='productionCarBody';carRoot.add(body);";
+must(s.includes(anchor),'production body anchor missing');
+const fix=`body.position.y=.20;body.name='productionCarBody';
+   // The Kenney race body GLB contains its own four wheel meshes. The runtime also uses four
+   // dedicated player_wheel GLBs for steering/spin, so suppress the embedded visual wheel set.
+   let embeddedWheelMeshes=0;
+   body.traverse(n=>{if(n===body)return;const nm=String(n.name||'').toLowerCase();if(/wheel|tire|tyre|rim/.test(nm)){n.visible=false;if(n.isMesh)embeddedWheelMeshes++}});
+   body.userData.embeddedWheelMeshesHidden=embeddedWheelMeshes;
+   carRoot.add(body);`;
+s=s.replace(anchor,fix);
+const diag="vehicleContact:()=>({";
+must(s.includes(diag),'vehicleContact diagnostic missing');
+s=s.replace(diag,"singleWheelSet:()=>({dedicatedVisible:realCarWheels.filter(w=>w.visible!==false).length,embeddedHidden:realCarVisual?.getObjectByName('productionCarBody')?.userData?.embeddedWheelMeshesHidden||0,totalDedicated:realCarWheels.length}),"+diag);
+s+='\n<!-- v15.5.41 exactly one dedicated four-wheel visual set; embedded body GLB wheels suppressed -->\n';
+for(const x of ['v15.5.41','embeddedWheelMeshesHidden','singleWheelSet:()=>'])must(s.includes(x),'missing '+x);
+fs.writeFileSync(file,s);console.log('v15.5.41 single wheel set fix applied');
