@@ -10,9 +10,18 @@ s=s.replace(/<select id="track">[\s\S]*?<\/select>/,'<select id="track"><option 
 s=s.replace('>START RACE</button>','>START FREE ROAM</button>');
 s=s.replaceAll("buildWorld($('#track').value)","buildWorld('freeroam')");
 s=s.replaceAll("buildWorld('coast')","buildWorld('freeroam')");
+s=s.replaceAll('setTimeout(ensureCourseMenuOptions,0);','setTimeout(()=>{ensureCourseMenuOptions();enforceFreeRoamOnly()},0);');
+s=s.replaceAll('ensureCourseMenuOptions();','ensureCourseMenuOptions();enforceFreeRoamOnly();');
 
 const art=`
+function enforceFreeRoamOnly(){
+ const sel=$('#track');if(!sel)return false;
+ for(const o of [...sel.options])if(o.value!=='freeroam')o.remove();
+ let opt=[...sel.options].find(o=>o.value==='freeroam');if(!opt){opt=document.createElement('option');opt.value='freeroam';sel.appendChild(opt)}
+ opt.textContent='FREE ROAM • PRODUCTION MAP';opt.selected=true;sel.value='freeroam';return sel.options.length===1;
+}
 function decorateFreeRoamProduction(){
+ enforceFreeRoamOnly();
  if(!freeRoamMode&&$('#track')?.value!=='freeroam')return;
  const old=world.getObjectByName('freeRoamProductionArt');if(old)world.remove(old);
  const g=new THREE.Group();g.name='freeRoamProductionArt';world.add(g);
@@ -42,8 +51,8 @@ must(s.includes(anchor),'event anchor missing');s=s.replace(anchor,art+'\n'+anch
 
 s=s.replace("$('#box3dHud').textContent='WHEEL PHYSICS';\n  window.__polygonRush={","$('#box3dHud').textContent='WHEEL PHYSICS';\n  if(freeRoamMode)decorateFreeRoamProduction();\n  window.__polygonRush={");
 s=s.replaceAll("buildWorld('freeroam');cam.position","buildWorld('freeroam');decorateFreeRoamProduction();cam.position");
-s=s.replace("window.__polygonRush={version:'15.5.29',boot:true","window.__polygonRush={version:'15.5.34',boot:true");
+s=s.replace("window.__polygonRush={version:'15.5.29',boot:true","enforceFreeRoamOnly();window.__polygonRush={version:'15.5.34',boot:true");
 
 s+='\n<!-- v15.5.34 free-roam-only stylized-pbr production-art -->\n';
-for(const x of ['v15.5.34','FREE ROAM • PRODUCTION MAP','decorateFreeRoamProduction','freeRoamProductionArt'])must(s.includes(x),'missing '+x);
+for(const x of ['v15.5.34','FREE ROAM • PRODUCTION MAP','decorateFreeRoamProduction','freeRoamProductionArt','enforceFreeRoamOnly'])must(s.includes(x),'missing '+x);
 fs.writeFileSync(file,s);console.log('v15.5.34 Free Roam only art pass applied');
