@@ -31,7 +31,7 @@ const neu=` let long=lv0.long,lat=lv0.lat;
  const driveAccel=baseDrive*WHEEL_PHYS.driveGrip*surfaceGrip*torqueCurve;
  if(throttle>0)long+=driveAccel*throttle*dt;
  if(brake>0){
-  const dec=(WHEEL_PHYS.brakeForce/WHEEL_PHYS.mass)*surfaceGrip*brake*dt;
+  const dec=(WHEEL_PHYS.brakeForce/WHEEL_PHYS.mass)*surfaceGrip*1.22*brake*dt;
   if(Math.abs(long)<=dec)long=0;else long-=Math.sign(long)*dec;
  }
  // Rolling friction, drivetrain drag and aero resistance remain even when the throttle is released.
