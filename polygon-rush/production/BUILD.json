@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "15.5.35",
+  "productionVersion": "15.5.36",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "browser-gated-success",
-  "indexSha256": "2941f3983c59756e609d8d57220465b4a4b4a7b8a5f03bc31c1fafc149f0f46f",
+  "indexSha256": "bb24711d3402530def2ba5a5fbf60a68bb0573f9c5bdb97b24dc62a66db4fdb8",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "15.5.34",
+  "parentProductionVersion": "15.5.35",
   "handlingFix": "steer-under-power",
   "features": [
     "steer-under-power",
@@ -38,7 +38,15 @@
     "real-environment-models",
     "optimized-collision-proxies",
     "local-third-party-assets",
-    "stylized-pbr-model-materials"
+    "stylized-pbr-model-materials",
+    "normalized-asset-origins",
+    "corrected-model-orientation",
+    "separate-race-body",
+    "explicit-racing-wheel-meshes",
+    "wheel-steer-pivots",
+    "wheel-spin-axle-pivots",
+    "kenney-car-kit-texture-atlas",
+    "individual-scene-props"
   ],
   "developmentScope": "free-roam-only"
 }
