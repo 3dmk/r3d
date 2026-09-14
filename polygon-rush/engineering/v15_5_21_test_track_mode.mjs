@@ -9,22 +9,18 @@ const replaceFunction=(name,newCode)=>{
  must(end>start,`unterminated ${name}`);s=s.slice(0,start)+newCode+s.slice(end);
 };
 
-// Add a dedicated test level to the world selector.
 const worldOpt='<option value="alpine">Alpine Skyway</option>';
 must(s.includes(worldOpt)||s.includes('value="test"'),'world selector anchor missing');
 if(!s.includes('value="test"'))s=s.replace(worldOpt,worldOpt+'<option value="test">TEST TRACK • PHYSICS LAB</option>');
 
-// Test world palette.
 const zoneAnchor='const zones={coast:{sky:0x8dcde1,ground:0x73ad71,road:0x343c42,accent:0xffd166},forest:{sky:0x88b5c6,ground:0x4d774d,road:0x343a3d,accent:0xffbd5c},canyon:{sky:0xdabf99,ground:0xc7834d,road:0x443e39,accent:0x6ce0d6},neon:{sky:0x17263c,ground:0x243341,road:0x1a2027,accent:0xff5fd2},alpine:{sky:0xaed2e0,ground:0xb8c5c9,road:0x394147,accent:0xff716b}};';
 must(s.includes(zoneAnchor)||s.includes('zones.test='),'zones anchor missing');
 if(!s.includes('zones.test='))s=s.replace(zoneAnchor,zoneAnchor+'\nzones.test={sky:0xa9c4d2,ground:0x66705f,road:0x30363a,accent:0xffc857};');
 
-// Track dedicated mode state.
 const globals='let curve,trackSamples=[],running=false,paused=false,last=performance.now(),keys={},player=null,ais=[],raceTime=0,frameCount=0,fps=0,fpsStamp=performance.now(),nearestIdx=0,lapGate=false,countdown=0,raceStarted=false,finished=false,checkpoint=0,cameraShake=0,wrongWayTime=0,pickups=[],barriers=[];';
 must(s.includes(globals)||s.includes('let testMode=false'),'global state anchor missing');
 if(!s.includes('let testMode=false'))s=s.replace(globals,globals+'\nlet testMode=false;');
 
-// Replace the procedural loop only for the test world with a proving-ground style closed route.
 const trackGen='trackSamples=[];const N=260;for(let i=0;i<N;i++){const a=i/N*TAU,r=115+17*Math.sin(a*3)+8*Math.sin(a*5+1.1),x=Math.cos(a)*r,zp=Math.sin(a)*r,y=1.25+2.4*Math.sin(a*2-.4)+1.15*Math.sin(a*5+.8);trackSamples.push(new THREE.Vector3(x,y,zp))}';
 must(s.includes(trackGen)||s.includes("if(name==='test')"),'track generation anchor missing');
 if(!s.includes("if(name==='test')"))s=s.replace(trackGen,`trackSamples=[];const N=260;
@@ -78,8 +74,11 @@ if(!s.includes("if(testMode){\n  raceStarted=true;finished=false;"))s=s.replace(
   return;
  }`);
 
-if(s.includes('  updateAI(dt);'))s=s.replace('  updateAI(dt);','  if(!testMode)updateAI(dt);');
-else must(s.includes('if(!testMode)updateAI(dt);'),'AI loop anchor missing');
+if(!s.includes('if(!testMode)updateAI(dt);')){
+ const aiPattern=/([\t ]*)updateAI\(dt\);/;
+ must(aiPattern.test(s),'AI loop anchor missing');
+ s=s.replace(aiPattern,'$1if(!testMode)updateAI(dt);');
+}
 
 const quitOld="$('#quit').onclick=()=>{running=false;paused=false;$('#pause').style.display='none';$('#hud').style.display='none';$('#menu').style.display='block';buildWorld($('#track').value);cam.position.set(0,165,205);cam.lookAt(0,0,0)};";
 if(s.includes(quitOld))s=s.replace(quitOld,"$('#quit').onclick=()=>{running=false;paused=false;testMode=false;setTestHud(false);$('#pause').style.display='none';$('#hud').style.display='none';$('#menu').style.display='block';buildWorld($('#track').value);cam.position.set(0,165,205);cam.lookAt(0,0,0)};");
