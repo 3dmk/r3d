@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply v15.5.30 modes migration
         run: node polygon-rush/engineering/v15_5_30_production_modes.mjs polygon-rush/production/index.html
+      - name: Fix mode start ordering
+        run: node polygon-rush/engineering/v15_5_30_mode_start_order_fix.mjs polygon-rush/production/index.html
       - name: Validate JavaScript syntax
         run: |
           python3 - <<'PY'
