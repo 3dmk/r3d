@@ -46,7 +46,11 @@ const diagReplacement="spin:(player.g?.userData?.allWheels||[]).map(w=>w.userDat
 must(s.includes(diagNeedle),'runtime diagnostics spin marker missing');
 s=s.replace(diagNeedle,diagReplacement);
 
-for(const r of ['Polygon Rush v15.5.1 Wheel Axis Fix','tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)','w.userData.tire.rotation.set(w.userData.spin,0,0)','w.userData.rim.rotation.set(w.userData.spin,0,0)','wheelEuler:'])must(s.includes(r),'v15.5.1 missing '+r);
+const aiNeedle='testAI:(steps=120)=>{';
+must(s.includes(aiNeedle),'testAI hook missing');
+s=s.replace(aiNeedle,"forceGo:()=>{raceStarted=true;countdown=0;window.__polygonRush.go=true;return true},testAI:(steps=120)=>{");
+
+for(const r of ['Polygon Rush v15.5.1 Wheel Axis Fix','tireGeo.rotateZ(Math.PI/2)','rimGeo.rotateZ(Math.PI/2)','w.userData.tire.rotation.set(w.userData.spin,0,0)','w.userData.rim.rotation.set(w.userData.spin,0,0)','wheelEuler:','forceGo:()=>'])must(s.includes(r),'v15.5.1 missing '+r);
 for(const bad of ['w.userData.tire.rotation.y=w.userData.spin','w.userData.rim.rotation.y=w.userData.spin','tire.rotation.z=Math.PI/2','rim.rotation.z=Math.PI/2'])must(!s.includes(bad),'v15.5.1 stale wrong-axis code '+bad);
 fs.writeFileSync(file,s);
 console.log('Polygon Rush v15.5.1 wheel axis fix applied');
