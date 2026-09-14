@@ -1,0 +1,52 @@
+name: Apply Polygon Rush v15.5.39 Vehicle Contact Rebuild
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'polygon-rush/engineering/v15_5_39_vehicle_contact_rebuild.mjs'
+      - '.github/workflows/apply_v15_5_39.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply vehicle contact rebuild
+        run: node polygon-rush/engineering/v15_5_39_vehicle_contact_rebuild.mjs polygon-rush/production/index.html
+      - name: Validate runtime source
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('polygon-rush/production/index.html').read_text()
+          a=s.index("<script>\n(()=>{'use strict';")+len('<script>\n')
+          b=s.index('</script>',a)
+          Path('/tmp/polygon-inline.js').write_text(s[a:b])
+          checks=['v15.5.39','resolveChassisOBB','legacyVisibleWheels','vehicleContact:()=>','wheelContactCount']
+          for x in checks: assert x in s,x
+          assert "return resolveChassisOBB(car,obj);" in s
+          print('static contact assertions PASS')
+          PY
+          node --check /tmp/polygon-inline.js
+      - name: Update production metadata
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          root=pathlib.Path('polygon-rush/production')
+          (root/'VERSION.txt').write_text('Polygon Rush v15.5.39 Four-Wheel Mesh Contact\n')
+          p=root/'BUILD.json'; meta=json.loads(p.read_text())
+          meta['productionVersion']='15.5.39';meta['parentProductionVersion']='15.5.38';meta['releaseGate']='browser-gated-success'
+          for f in ['single-visible-wheel-set','four-independent-wheel-mesh-contact','oriented-chassis-obb','slope-normal-contact','bounded-slope-height-follow','anti-ramp-launch-clamp']:
+              if f not in meta['features']: meta['features'].append(f)
+          meta['indexSha256']=hashlib.sha256((root/'index.html').read_bytes()).hexdigest()
+          meta['threeSha256']=hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()
+          p.write_text(json.dumps(meta,indent=2)+'\n')
+          PY
+      - name: Commit production v15.5.39
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add polygon-rush/production/index.html polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
+          git commit -m 'Promote Polygon Rush v15.5.39 four-wheel mesh contact'
+          git push
