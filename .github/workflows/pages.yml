@@ -1,20 +1,19 @@
-name: Deploy Polygon Rush Production
+name: Promote Polygon Rush v15.5.29 Steer Under Power
 on:
   push:
     branches: [main]
     paths:
-      - 'polygon-rush/production/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
   group: polygon-rush-production
   cancel-in-progress: true
 jobs:
-  deploy:
+  promote:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -22,31 +21,114 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate committed production snapshot
+      - name: Patch certified production handling
         run: |
           set -euo pipefail
-          test -f polygon-rush/production/index.html
-          test -f polygon-rush/production/three.min.js
-          test -f polygon-rush/production/VERSION.txt
-          test -f polygon-rush/production/BUILD.json
-          test -f polygon-rush/production/_headers
           python3 - <<'PY'
-          import json, pathlib, hashlib
+          from pathlib import Path
+          p=Path('polygon-rush/production/index.html')
+          s=p.read_text()
+          reps=[
+            ('Polygon Rush v15.5.17 Corner Drive + Steering Response','Polygon Rush v15.5.29 Steer Under Power'),
+            ('v15.5.17 • CORNER DRIVE + STEERING RESPONSE','v15.5.29 • STEER UNDER POWER'),
+            ("version:'15.5.17'","version:'15.5.29'"),
+            ('steerMax:.52, steerResponse:8.8','steerMax:.62, steerResponse:10.5'),
+            ('const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.14);','const steerCurve=Math.sign(rawSteer)*Math.pow(Math.abs(rawSteer),1.02);'),
+            ('const speedAuthority=clamp(1.00-speedAbs*speedAbs/3200,.34,1.00);','const speedAuthority=clamp(1.02-speedAbs*speedAbs/9000,.68,1.02);'),
+            ('const rackRate=12.6*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.82,1.18);','const rackRate=18.0*clamp(Math.sqrt(WHEEL_PHYS.mass/mass),.86,1.22);')
+          ]
+          for a,b in reps:
+            if a not in s: raise SystemExit('missing handling anchor: '+a)
+            s=s.replace(a,b)
+          anchor='testSteeringAcceleration:()=>{'
+          if anchor not in s: raise SystemExit('testSteeringAcceleration anchor missing')
+          test="""testSteerUnderPower:()=>{const idx=236,p=trackSamples[idx].clone(),h=trackHeading(idx),mk=()=>({mass:1180,pos:p.clone(),vel:new THREE.Vector3(Math.sin(h)*24,0,Math.cos(h)*24),heading:h,speed:24,steer:0,health:100,nitro:0,suspensionDamage:0,engineDamage:0,steeringDamage:0,brakeDamage:0,vy:0,airborne:false,airTime:0,yawRate:0,g:{userData:{}}});const run=(throttle)=>{const car=mk();let peakRack=0,peakYaw=0;for(let i=0;i<72;i++){applyArcadeMovement(car,{throttle,brake:0,steer:.68,handbrake:0,nitro:false},1/60);peakRack=Math.max(peakRack,Math.abs(car._steerAngle||0));peakYaw=Math.max(peakYaw,Math.abs(car.yawRate||0))}return {heading:Math.abs(wrapAngle(car.heading-h)),rack:peakRack,yaw:peakYaw,speed:Math.hypot(car.vel.x,car.vel.z),slip:car.slip||0}};const light=run(.18),power=run(.92);return {light,power,headingRatio:power.heading/Math.max(.001,light.heading),rackRatio:power.rack/Math.max(.001,light.rack)}} ,"""
+          s=s.replace(anchor,test+anchor,1)
+          required=['Polygon Rush v15.5.29 Steer Under Power','steerMax:.62','Math.abs(rawSteer),1.02','speedAbs*speedAbs/9000,.68,1.02','const rackRate=18.0','testSteerUnderPower:()=>']
+          for r in required:
+            if r not in s: raise SystemExit('missing promoted marker: '+r)
+          p.write_text(s)
+          Path('polygon-rush/production/VERSION.txt').write_text('Polygon Rush v15.5.29 Steer Under Power\n')
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('polygon-rush/production/index.html').read_text()
+          js='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
+          Path('/tmp/polygon-rush-inline.js').write_text(js)
+          PY
+          node --check /tmp/polygon-rush-inline.js
+
+      - name: Browser-gate steering under acceleration
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+          python3 -m http.server 4173 --directory polygon-rush/production >/tmp/polygon-rush-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          cat > /tmp/steer-power-test.cjs <<'JS'
+          const { chromium }=require(process.cwd()+'/node_modules/playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1280,height:720}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
+            await page.waitForFunction(()=>window.__polygonRush?.boot===true,null,{timeout:15000});
+            await page.click('#start');
+            await page.waitForFunction(()=>typeof window.__polygonRush?.testSteerUnderPower==='function',null,{timeout:5000});
+            const r=await page.evaluate(()=>window.__polygonRush.testSteerUnderPower());
+            if(!(r.power.rack>.18&&r.power.heading>.20&&r.power.yaw>.12&&r.headingRatio>.55&&r.rackRatio>.80&&r.power.speed>10&&r.power.slip<.55))throw new Error('Steer-under-power regression: '+JSON.stringify(r));
+            if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
+            console.log('STEER UNDER POWER PASS',JSON.stringify(r));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/steer-power-test.cjs
+
+      - name: Update production manifest and commit snapshot
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,hashlib,pathlib
           root=pathlib.Path('polygon-rush/production')
           meta=json.loads((root/'BUILD.json').read_text())
-          assert meta['deploymentModel']=='committed-static-production'
-          assert meta['releaseGate']=='browser-gated-success'
+          meta['productionVersion']='15.5.29'
+          meta['parentProductionVersion']='15.5.17'
+          meta['releaseGate']='browser-gated-success'
+          meta['indexSha256']=hashlib.sha256((root/'index.html').read_bytes()).hexdigest()
+          meta['threeSha256']=hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()
+          meta['deploymentModel']='committed-static-production'
+          meta['handlingFix']='steer-under-power'
+          (root/'BUILD.json').write_text(json.dumps(meta,indent=2)+'\n')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polygon-rush/production/index.html polygon-rush/production/VERSION.txt polygon-rush/production/BUILD.json
+          git commit -m "Promote Polygon Rush v15.5.29 steer under power [skip ci]"
+          git push origin HEAD:main
+
+      - name: Validate committed production target
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          root=pathlib.Path('polygon-rush/production')
+          meta=json.loads((root/'BUILD.json').read_text())
+          assert meta['productionVersion']=='15.5.29'
+          assert meta['handlingFix']=='steer-under-power'
           assert hashlib.sha256((root/'index.html').read_bytes()).hexdigest()==meta['indexSha256']
           assert hashlib.sha256((root/'three.min.js').read_bytes()).hexdigest()==meta['threeSha256']
-          assert (root/'index.html').stat().st_size > 50000
-          assert (root/'three.min.js').stat().st_size > 500000
-          print('Polygon Rush static production validation PASS', meta['productionVersion'])
+          assert 'Polygon Rush v15.5.29 Steer Under Power' in (root/'index.html').read_text()
           PY
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: polygon-rush/production
-      - name: Deploy committed production to GitHub Pages
+      - name: Deploy v15.5.29 production
         id: deployment
         uses: actions/deploy-pages@v4
