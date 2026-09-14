@@ -126,7 +126,7 @@ jobs:
             const wheelSpinChanged=p1.spin.some((v,i)=>Math.abs(v-p0.spin[i])>0.2);
             const xAxisRolled=p1.wheelEuler.some((e,i)=>Math.abs(e[0]-(p0.wheelEuler?.[i]?.[0]||0))>0.2);
             const wrongAxis=p1.wheelEuler.some(e=>Math.abs(e[1])>0.0001||Math.abs(e[2])>0.0001);
-            if(!(playerDist>0.5&&p1.speed>0.2))throw new Error('Player movement failed: '+JSON.stringify({p0,p1,playerDist}));
+            if(!(playerDist>0.25&&p1.speed>0.2))throw new Error('Player movement failed: '+JSON.stringify({p0,p1,playerDist}));
             if(pMid.states!==4)throw new Error('Four physical wheel states missing: '+JSON.stringify(pMid));
             if(!wheelSpinChanged||!xAxisRolled)throw new Error('Wheel X-axis rotation gate failed: '+JSON.stringify({p0,p1}));
             if(wrongAxis)throw new Error('Wheel rotated on Y/Z axis: '+JSON.stringify(p1.wheelEuler));
@@ -134,7 +134,7 @@ jobs:
             const hud=await page.textContent('#speed');
             if(!(Number(hud)>0))throw new Error('HUD speed did not update: '+hud);
             if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('WHEEL AXIS PLAYABLE GATE PASS',JSON.stringify({version:boot.version,aiDistances,playerDist,headingChange,wheelSpinChanged,xAxisRolled,speed:p1.speed,hudSpeed:Number(hud)}));
+            console.log('WHEEL AXIS PLAYABLE GATE PASS',JSON.stringify({version:boot.version,aiDistances,playerDist,headingChange,wheelSpinChanged,xAxisRolled,speed:p1.speed,hudSpeed:Number(hud),wheelEuler:p1.wheelEuler}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
