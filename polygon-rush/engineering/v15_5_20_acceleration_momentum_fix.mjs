@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {spawnSync} from 'node:child_process';
 const file=process.argv[2]||'index.html';
 let s=fs.readFileSync(file,'utf8');
 const must=(x,m)=>{if(!x)throw new Error(m)};
@@ -53,3 +54,7 @@ s=s.replace(hook,hook+`testAccelerationMomentum:()=>{const i=236,p=trackSamples[
 for(const r of ['driveMomentumRise:5.8','driveMomentumFall:1.45','driveMomentumAccel:4.6','raceTurnGripRate:7.4','raceTurnSlipTarget:.12','racePowerGripKeep:.94','car._driveMomentum??=0','driveCarryAccel','testAccelerationMomentum:()=>','testNormalTurnGrip:()=>'])must(s.includes(r),'missing '+r);
 fs.writeFileSync(file,s);
 console.log('Polygon Rush persistent acceleration momentum + normal turn grip applied');
+
+const testPatch='polygon-rush/engineering/v15_5_21_test_track_mode.mjs';
+const testRun=spawnSync(process.execPath,[testPatch,file],{stdio:'inherit'});
+if(testRun.status!==0)process.exit(testRun.status??1);
