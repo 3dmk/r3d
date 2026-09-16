@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "product": "Polygon Rush",
-  "productionVersion": "16.0.5",
+  "productionVersion": "16.0.6",
   "sourceWorkflowRun": 34827164756,
   "sourceWorkflowRunNumber": 220,
   "sourceCommit": "39528bf53700718599230d44151e25ddb806c5aa",
   "sourceArtifactId": 10340434446,
   "releaseGate": "clean-core-static-validated",
-  "indexSha256": "2ff8f73afb9eb3ae9ef43c9f428fe25961d48cf619f518eef357721b82b579e1",
+  "indexSha256": "8da031d7d815da05d5b8b7b0cd1aeffd28c4d114bd739267d8ae8439bdca88c6",
   "threeSha256": "218b9f9420af1ee2b773fa066cee0eeb52f7ac76ca2fa11b11b732c1ba0a6e39",
   "deploymentModel": "committed-static-production",
-  "parentProductionVersion": "16.0.4",
-  "handlingFix": "android-multitouch-controls",
+  "parentProductionVersion": "16.0.5",
+  "handlingFix": "mobile-controls-visibility-fix",
   "features": [
     "3d-obstacle-contact-impulse",
     "clean-production-runtime",
@@ -47,7 +47,9 @@
     "android-touch-controls",
     "analog-touch-steering",
     "multitouch-gas-brake-handbrake",
-    "pointer-capture-controls"
+    "pointer-capture-controls",
+    "android-webview-controls-visible",
+    "mobile-viewport-control-fallback"
   ],
   "developmentScope": "free-roam-only",
   "physicsAuthority": "single-js-rigid-body",
