@@ -1,0 +1,43 @@
+name: Apply Polygon Rush v16.0.5 Android Touch Controls
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply_v16_0_5.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v16.0.5
+        run: node polygon-rush/engineering/v16_0_5_android_touch_controls.mjs polygon-rush/production/index.html
+      - name: Validate runtime
+        run: |
+          python3 - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('polygon-rush/production/index.html').read_text()
+          m=re.search(r'<script type="module">([\s\S]*?)</script>',s); assert m
+          pathlib.Path('/tmp/pr165.mjs').write_text(m.group(1))
+          assert "VERSION='16.0.5'" in s
+          for x in ['setupMobileControls','steerPad','gasTouch','brakeTouch','handbrakeTouch','touch-action:none','setPointerCapture']:
+              assert x in s,x
+          PY
+          node --check /tmp/pr165.mjs
+      - name: Update metadata
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          r=pathlib.Path('polygon-rush/production');p=r/'BUILD.json';d=json.loads(p.read_text())
+          d['productionVersion']='16.0.5';d['parentProductionVersion']='16.0.4';d['handlingFix']='android-multitouch-controls'
+          d['features']=list(dict.fromkeys(d.get('features',[])+['android-touch-controls','analog-touch-steering','multitouch-gas-brake-handbrake','pointer-capture-controls']))
+          d['indexSha256']=hashlib.sha256((r/'index.html').read_bytes()).hexdigest();d['threeSha256']=hashlib.sha256((r/'three.min.js').read_bytes()).hexdigest();p.write_text(json.dumps(d,indent=2)+'\n');(r/'VERSION.txt').write_text('16.0.5\n')
+          PY
+      - name: Commit production
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add polygon-rush/production/index.html polygon-rush/production/BUILD.json polygon-rush/production/VERSION.txt
+          git commit -m 'Promote Polygon Rush v16.0.5 Android touch controls'
+          git push
