@@ -37,7 +37,7 @@ Version: **1.0.0-rc1**
 - PNG export
 
 ### Release gate
-`node r3d/release-check.mjs`
+`node release-check.mjs`
 
 The gate verifies:
 - JavaScript syntax
