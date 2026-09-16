@@ -20,7 +20,7 @@ jobs:
           s=pathlib.Path('polygon-rush/production/index.html').read_text()
           m=re.search(r'<script type="module">([\s\S]*?)</script>',s); assert m
           pathlib.Path('/tmp/pr165.mjs').write_text(m.group(1))
-          assert "VERSION='16.0.5'" in s
+          assert "const VERSION='16.0.5'" in s
           for x in ['setupMobileControls','steerPad','gasTouch','brakeTouch','handbrakeTouch','touch-action:none','setPointerCapture']:
               assert x in s,x
           PY
